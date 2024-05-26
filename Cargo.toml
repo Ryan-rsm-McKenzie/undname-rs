@@ -1,0 +1,11 @@
+[package]
+edition = "2021"
+name = "undname"
+version = "0.1.0"
+
+[dependencies]
+arrayvec = "0.7.4"
+bitflags = "2.5.0"
+bstr = "1.9.1"
+nonmax = "0.5.5"
+thiserror = "1.0.61"
