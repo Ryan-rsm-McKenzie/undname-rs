@@ -231,10 +231,7 @@ impl Demangler {
             let prefix = mangled_name
                 .try_consume_str(b"??@")
                 .ok_or(Error::InvalidMd5Name)?;
-            let stop = mangled_name
-                .find_byte(b'@')
-                .map(|x| x)
-                .ok_or(Error::InvalidMd5Name)?;
+            let stop = mangled_name.find_byte(b'@').ok_or(Error::InvalidMd5Name)?;
             mangled_name
                 .try_consume_n(stop + 1)
                 .ok_or(Error::InvalidMd5Name)?;
@@ -255,7 +252,7 @@ impl Demangler {
             stop += postfix.len();
         }
 
-        let md5 = &mangled_copy[..stop + 1];
+        let md5 = &mangled_copy[..=stop];
         let name = QualifiedNameNode::synthesize_from_name(&mut self.cache, md5);
         let s = Md5SymbolNode {
             name: self.cache.intern(name),
@@ -340,8 +337,10 @@ impl Demangler {
             return Err(Error::InvalidFunctionEncoding);
         }
 
-        // integral truncations here are on purpose
         let fc = Self::demangle_function_class(mangled_name)? | extra_flags;
+
+        // integral truncations here are on purpose
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let ttn = if fc.has_static_this_adjust() {
             let mut ttn = ThunkSignatureNode::default();
             ttn.this_adjust.static_offset = Self::demangle_signed(mangled_name)? as _;
@@ -1635,7 +1634,7 @@ impl Demangler {
         let namespace_key = mangled_name
             .try_consume_n(pos)
             .ok_or(Error::InvalidAnonymousNamespaceName)?;
-        self.memorize_string(&namespace_key)?;
+        self.memorize_string(namespace_key)?;
         mangled_name
             .try_consume_byte(b'@')
             .ok_or(Error::InvalidAnonymousNamespaceName)?;
@@ -1755,7 +1754,7 @@ impl Demangler {
                 let next_char = Self::decode_multi_byte_char(&string_bytes, char_index, char_bytes)
                     .ok_or(Error::InvalidStringLiteral)?;
                 if char_index + 1 < num_chars || is_truncated {
-                    Self::output_escaped_char(&mut ob, next_char.into())?;
+                    Self::output_escaped_char(&mut ob, next_char)?;
                 }
             }
 
