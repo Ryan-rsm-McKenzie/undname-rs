@@ -10,3 +10,6 @@ bitflags = "2.5.0"
 bstr = "1.9.1"
 nonmax = "0.5.5"
 thiserror = "1.0.61"
+
+[dev-dependencies]
+memchr = "2.7.2"

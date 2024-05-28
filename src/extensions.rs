@@ -68,7 +68,7 @@ impl BStrExt for &BStr {
 
     fn try_consume_n(&mut self, n: usize) -> Option<Self> {
         if n <= self.len() {
-            let (first, rest) = (&self[..n], &self[n..self.len() - n]);
+            let (first, rest) = (&self[..n], &self[n..]);
             *self = rest;
             Some(first)
         } else {
@@ -135,8 +135,8 @@ impl BStrExt for &BStr {
 
         // \?[0-9]\?
         // ?@? is the discriminator 0.
-        if let Some(first) = candidate.first() {
-            return *first == b'@' || first.is_ascii_digit();
+        if candidate.len() == 1 {
+            return candidate[0] == b'@' || candidate[0].is_ascii_digit();
         }
 
         // If it's not 0-9, then it's an encoded number terminated with an @

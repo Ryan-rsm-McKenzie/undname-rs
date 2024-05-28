@@ -25,6 +25,9 @@ mod demangler;
 mod extensions;
 mod nodes;
 
+#[cfg(test)]
+mod tests;
+
 use crate::{
     demangler::Demangler,
     nodes::OutputFlags,
@@ -185,7 +188,7 @@ impl Flags {
     #[must_use]
     pub const fn no_access_specifier(self, value: bool) -> Self {
         if value {
-            Self(self.0.intersection(OutputFlags::OF_NoAccessSpecifier))
+            Self(self.0.union(OutputFlags::OF_NoAccessSpecifier))
         } else {
             Self(self.0.difference(OutputFlags::OF_NoAccessSpecifier))
         }
@@ -194,7 +197,7 @@ impl Flags {
     #[must_use]
     pub const fn no_calling_convention(self, value: bool) -> Self {
         if value {
-            Self(self.0.intersection(OutputFlags::OF_NoCallingConvention))
+            Self(self.0.union(OutputFlags::OF_NoCallingConvention))
         } else {
             Self(self.0.difference(OutputFlags::OF_NoCallingConvention))
         }
@@ -203,7 +206,7 @@ impl Flags {
     #[must_use]
     pub const fn no_member_type(self, value: bool) -> Self {
         if value {
-            Self(self.0.intersection(OutputFlags::OF_NoMemberType))
+            Self(self.0.union(OutputFlags::OF_NoMemberType))
         } else {
             Self(self.0.difference(OutputFlags::OF_NoMemberType))
         }
@@ -212,25 +215,16 @@ impl Flags {
     #[must_use]
     pub const fn no_return_type(self, value: bool) -> Self {
         if value {
-            Self(self.0.intersection(OutputFlags::OF_NoReturnType))
+            Self(self.0.union(OutputFlags::OF_NoReturnType))
         } else {
             Self(self.0.difference(OutputFlags::OF_NoReturnType))
         }
     }
 
     #[must_use]
-    pub const fn no_tag_specifier(self, value: bool) -> Self {
-        if value {
-            Self(self.0.intersection(OutputFlags::OF_NoTagSpecifier))
-        } else {
-            Self(self.0.difference(OutputFlags::OF_NoTagSpecifier))
-        }
-    }
-
-    #[must_use]
     pub const fn no_variable_type(self, value: bool) -> Self {
         if value {
-            Self(self.0.intersection(OutputFlags::OF_NoVariableType))
+            Self(self.0.union(OutputFlags::OF_NoVariableType))
         } else {
             Self(self.0.difference(OutputFlags::OF_NoVariableType))
         }

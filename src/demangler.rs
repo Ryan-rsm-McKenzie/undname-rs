@@ -118,6 +118,11 @@ impl NameBackrefBehavior {
     fn is_template(self) -> bool {
         self.contains(Self::NBB_Template)
     }
+
+    #[must_use]
+    fn is_simple(self) -> bool {
+        self.contains(Self::NBB_Simple)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -155,7 +160,7 @@ impl Demangler {
                 .ok_or(Error::Io(io::ErrorKind::UnexpectedEof.into()))?;
             // ?$ is a template instantiation, but all other names that start with ? are
             // operators / special names.
-            if let Ok(Some(si)) = self.demangle_special_intrinsic(mangled_name) {
+            if let Some(si) = self.demangle_special_intrinsic(mangled_name)? {
                 Ok(si)
             } else {
                 self.demangle_declarator(mangled_name)
@@ -201,10 +206,7 @@ impl Demangler {
         // back references.
         let qn = self.demangle_fully_qualified_symbol_name(mangled_name)?;
         let symbol = self.demangle_encoded_symbol(mangled_name, qn)?;
-        {
-            let mut symbol = symbol.resolve_mut(&mut self.cache);
-            symbol.set_name(qn);
-        }
+        symbol.resolve_mut(&mut self.cache).set_name(qn);
 
         let uqn = qn
             .resolve(&self.cache)
@@ -231,12 +233,12 @@ impl Demangler {
                 .ok_or(Error::InvalidMd5Name)?;
             let stop = mangled_name
                 .find_byte(b'@')
-                .map(|x| x + prefix.len())
+                .map(|x| x)
                 .ok_or(Error::InvalidMd5Name)?;
             mangled_name
-                .try_consume_n(stop)
+                .try_consume_n(stop + 1)
                 .ok_or(Error::InvalidMd5Name)?;
-            stop
+            stop + prefix.len()
         };
 
         // There are two additional special cases for MD5 names:
@@ -253,7 +255,7 @@ impl Demangler {
             stop += postfix.len();
         }
 
-        let md5 = &mangled_copy[..stop];
+        let md5 = &mangled_copy[..stop + 1];
         let name = QualifiedNameNode::synthesize_from_name(&mut self.cache, md5);
         let s = Md5SymbolNode {
             name: self.cache.intern(name),
@@ -338,29 +340,20 @@ impl Demangler {
             return Err(Error::InvalidFunctionEncoding);
         }
 
+        // integral truncations here are on purpose
         let fc = Self::demangle_function_class(mangled_name)? | extra_flags;
         let ttn = if fc.has_static_this_adjust() {
             let mut ttn = ThunkSignatureNode::default();
-            ttn.this_adjust.static_offset = Self::demangle_signed(mangled_name)?
-                .try_into()
-                .map_err(|_| Error::InvalidFunctionEncoding)?;
+            ttn.this_adjust.static_offset = Self::demangle_signed(mangled_name)? as _;
             Some(ttn)
         } else if fc.has_virtual_this_adjust() {
             let mut ttn = ThunkSignatureNode::default();
             if fc.has_virtual_this_adjust_ex() {
-                ttn.this_adjust.vbptr_offset = Self::demangle_signed(mangled_name)?
-                    .try_into()
-                    .map_err(|_| Error::InvalidFunctionEncoding)?;
-                ttn.this_adjust.vboffset_offset = Self::demangle_signed(mangled_name)?
-                    .try_into()
-                    .map_err(|_| Error::InvalidFunctionEncoding)?;
+                ttn.this_adjust.vbptr_offset = Self::demangle_signed(mangled_name)? as _;
+                ttn.this_adjust.vboffset_offset = Self::demangle_signed(mangled_name)? as _;
             }
-            ttn.this_adjust.vtor_disp_offset = Self::demangle_signed(mangled_name)?
-                .try_into()
-                .map_err(|_| Error::InvalidFunctionEncoding)?;
-            ttn.this_adjust.static_offset = Self::demangle_signed(mangled_name)?
-                .try_into()
-                .map_err(|_| Error::InvalidFunctionEncoding)?;
+            ttn.this_adjust.vtor_disp_offset = Self::demangle_signed(mangled_name)? as _;
+            ttn.this_adjust.static_offset = Self::demangle_signed(mangled_name)? as _;
             Some(ttn)
         } else {
             None
@@ -517,7 +510,7 @@ impl Demangler {
 
         let ctn = CustomTypeNode {
             quals: Qualifiers::Q_None,
-            identifier: self.demangle_unqualified_type_name(mangled_name)?,
+            identifier: self.demangle_unqualified_type_name(mangled_name, true)?,
         };
 
         if mangled_name.try_consume_byte(b'@').is_some() {
@@ -635,7 +628,8 @@ impl Demangler {
 
         // <return-type> ::= <type>
         //               ::= @ # structors (they have no declared return type)
-        if mangled_name.try_consume_byte(b'@').is_some() {
+        let is_structor = mangled_name.try_consume_byte(b'@').is_some();
+        if !is_structor {
             fty.return_type = Some(self.demangle_type(mangled_name, QualifierMangleMode::Result)?);
         }
 
@@ -668,7 +662,7 @@ impl Demangler {
                 let n = IntegerLiteralNode { value, is_negative };
                 nodes.push(self.cache.intern(n).into());
             }
-            self.cache.intern(NodeArrayNode::from_node_list(nodes))
+            self.cache.intern(NodeArrayNode { nodes })
         };
 
         let quals = if mangled_name.try_consume_str(b"$$C").is_some() {
@@ -734,7 +728,7 @@ impl Demangler {
                     };
                 }
             }
-            Some(self.cache.intern(NodeArrayNode::from_node_list(nodes)))
+            Some(self.cache.intern(NodeArrayNode { nodes }))
         };
 
         // A non-empty parameter list is terminated by either 'Z' (variadic) parameter
@@ -885,7 +879,7 @@ impl Demangler {
 
         // Template parameter lists cannot be variadic, so it can only be terminated
         // by @ (as opposed to 'Z' in the function parameter case).
-        Ok(self.cache.intern(NodeArrayNode::from_node_list(nodes)))
+        Ok(self.cache.intern(NodeArrayNode { nodes }))
     }
 
     // Sometimes numbers are encoded in mangled symbols. For example,
@@ -976,7 +970,7 @@ impl Demangler {
         &mut self,
         mangled_name: &mut &BStr,
     ) -> Result<NodeHandle<QualifiedNameNode>> {
-        let identifier = self.demangle_unqualified_type_name(mangled_name)?;
+        let identifier = self.demangle_unqualified_type_name(mangled_name, true)?;
         self.demangle_name_scope_chain(mangled_name, identifier)
     }
 
@@ -1018,6 +1012,7 @@ impl Demangler {
     fn demangle_unqualified_type_name(
         &mut self,
         mangled_name: &mut &BStr,
+        memorize: bool,
     ) -> Result<NodeHandle<IIdentifierNode>> {
         if mangled_name.first().is_some_and(u8::is_ascii_digit) {
             self.demangle_back_ref_name(mangled_name).map(Into::into)
@@ -1027,7 +1022,8 @@ impl Demangler {
                 NameBackrefBehavior::NBB_Template,
             )
         } else {
-            self.demangle_simple_name(mangled_name).map(Into::into)
+            self.demangle_simple_name(mangled_name, memorize)
+                .map(Into::into)
         }
     }
 
@@ -1043,7 +1039,8 @@ impl Demangler {
         } else if mangled_name.starts_with(b"?") {
             self.demangle_function_identifier_code(mangled_name)
         } else {
-            self.demangle_simple_name(mangled_name).map(Into::into)
+            self.demangle_simple_name(mangled_name, nbb.is_simple())
+                .map(Into::into)
         }
     }
 
@@ -1056,7 +1053,8 @@ impl Demangler {
         nodes.push(unqualified_name.into());
         loop {
             if mangled_name.try_consume_byte(b'@').is_some() {
-                let components = self.cache.intern(NodeArrayNode::from_node_list(nodes));
+                nodes.reverse();
+                let components = self.cache.intern(NodeArrayNode { nodes });
                 let qn = QualifiedNameNode { components };
                 break Ok(self.cache.intern(qn));
             } else if mangled_name.is_empty() {
@@ -1085,7 +1083,8 @@ impl Demangler {
             self.demangle_locally_scoped_name_piece(mangled_name)
                 .map(Into::into)
         } else {
-            self.demangle_simple_name(mangled_name).map(Into::into)
+            self.demangle_simple_name(mangled_name, true)
+                .map(Into::into)
         }
     }
 
@@ -1129,14 +1128,14 @@ impl Demangler {
             // NBB_Template is only set for types and non-leaf names ("a::" in "a::b").
             // Structors and conversion operators only makes sense in a leaf name, so
             // reject them in NBB_Template contexts.
-            let identifier = identifier.resolve(&self.cache);
             if matches!(
-                identifier,
+                identifier.resolve(&self.cache),
                 IdentifierNode::ConversionOperatorIdentifier(_)
                     | IdentifierNode::StructorIdentifier(_)
             ) {
                 return Err(Error::InvalidTemplateInstantiationName);
             }
+            self.memorize_identifier(identifier)?;
         }
 
         Ok(identifier)
@@ -1351,7 +1350,7 @@ impl Demangler {
         &mut self,
         mangled_name: &mut &BStr,
     ) -> Result<NodeHandle<LiteralOperatorIdentifierNode>> {
-        let name = Self::demangle_simple_string(mangled_name)?.to_owned();
+        let name = self.demangle_simple_string(mangled_name, false)?.to_owned();
         Ok(self.cache.intern(LiteralOperatorIdentifierNode {
             name,
             ..Default::default()
@@ -1388,7 +1387,7 @@ impl Demangler {
                     mangled_name
                         .try_consume_str(b"@8")
                         .ok_or(Error::InvalidSpecialIntrinsic)?;
-                    if mangled_name.is_empty() {
+                    if !mangled_name.is_empty() {
                         return Err(Error::InvalidSpecialIntrinsic);
                     }
                     let node = VariableSymbolNode::synthesize(
@@ -1612,9 +1611,12 @@ impl Demangler {
     fn demangle_simple_name(
         &mut self,
         mangled_name: &mut &BStr,
+        memorize: bool,
     ) -> Result<NodeHandle<NamedIdentifierNode>> {
         let name = NamedIdentifierNode {
-            name: Self::demangle_simple_string(mangled_name)?.to_owned(),
+            name: self
+                .demangle_simple_string(mangled_name, memorize)?
+                .to_owned(),
             ..Default::default()
         };
         Ok(self.cache.intern(name))
@@ -1633,7 +1635,10 @@ impl Demangler {
         let namespace_key = mangled_name
             .try_consume_n(pos)
             .ok_or(Error::InvalidAnonymousNamespaceName)?;
-        self.memorize_string(namespace_key)?;
+        self.memorize_string(&namespace_key)?;
+        mangled_name
+            .try_consume_byte(b'@')
+            .ok_or(Error::InvalidAnonymousNamespaceName)?;
         Ok(self.cache.intern(NamedIdentifierNode {
             name: b"`anonymous namespace'".into(),
             ..Default::default()
@@ -1649,7 +1654,7 @@ impl Demangler {
             .try_consume_byte(b'?')
             .ok_or(Error::InvalidLocallyScopedNamePiece)?;
         let (number, is_negative) = Self::demangle_number(mangled_name)?;
-        if !is_negative {
+        if is_negative {
             return Err(Error::InvalidLocallyScopedNamePiece);
         }
 
@@ -1698,7 +1703,7 @@ impl Demangler {
             .find_byte(b'@')
             .ok_or(Error::InvalidStringLiteral)?;
         mangled_name
-            .try_consume_n(crc_end_pos)
+            .try_consume_n(crc_end_pos + 1)
             .ok_or(Error::InvalidStringLiteral)?;
         if mangled_name.is_empty() {
             return Err(Error::InvalidStringLiteral);
@@ -1796,18 +1801,29 @@ impl Demangler {
         Ok(self.cache.intern(FunctionSymbolNode { name, signature }))
     }
 
-    // Returns MangledName's prefix before the first '@', or an error if
-    // MangledName contains no '@' or the prefix has length 0.
-    fn demangle_simple_string<'string>(mangled_name: &mut &'string BStr) -> Result<&'string BStr> {
+    // Returns mangled_name's prefix before the first '@', or an error if
+    // mangled_name contains no '@' or the prefix has length 0.
+    fn demangle_simple_string<'string>(
+        &mut self,
+        mangled_name: &mut &'string BStr,
+        memorize: bool,
+    ) -> Result<&'string BStr> {
         let pos = mangled_name
             .find_byte(b'@')
             .ok_or(Error::InvalidSimpleString)?;
         if pos == 0 {
             Err(Error::InvalidSimpleString)
         } else {
-            mangled_name
+            let string = mangled_name
                 .try_consume_n(pos)
-                .ok_or(Error::InvalidSimpleString)
+                .ok_or(Error::InvalidSimpleString)?;
+            mangled_name
+                .try_consume_byte(b'@')
+                .ok_or(Error::InvalidSimpleString)?;
+            if memorize {
+                self.memorize_string(string)?;
+            }
+            Ok(string)
         }
     }
 
@@ -2114,7 +2130,7 @@ impl Demangler {
                 let c = unsafe { char::from_u32_unchecked(c) };
                 write!(ob, "{c}")
             }
-            _ => write!(ob, "\\x{c:X}"),
+            _ => write!(ob, "\\x{c:02X}"),
         }?;
         Ok(())
     }
@@ -2162,7 +2178,7 @@ impl Demangler {
         string_bytes: &[u8],
         char_index: usize,
         char_bytes: usize,
-    ) -> Option<char> {
+    ) -> Option<u32> {
         if char_bytes == 1 || char_bytes == 2 || char_bytes == 4 {
             let offset = char_index * char_bytes;
             if offset > string_bytes.len() {
@@ -2174,13 +2190,13 @@ impl Demangler {
                 return None;
             }
 
-            let mut result: u32 = 0;
+            let mut result = 0;
             for (i, &c) in string_bytes.iter().enumerate().take(char_bytes) {
                 let c: u32 = c.into();
                 result |= c << (8 * i);
             }
 
-            char::from_u32(result)
+            Some(result)
         } else {
             None
         }

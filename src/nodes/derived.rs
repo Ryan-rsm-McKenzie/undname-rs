@@ -159,9 +159,7 @@ impl Default for FunctionSignatureNode {
 
 impl WriteableNode for FunctionSignatureNode {
     fn output(&self, cache: &NodeCache, ob: &mut OutputBuffer, flags: OutputFlags) -> Result<()> {
-        self.output_pre(cache, ob, flags)?;
-        self.output_post(cache, ob, flags)?;
-        Ok(())
+        self.output_pair(cache, ob, flags)
     }
 }
 
@@ -192,7 +190,7 @@ impl WriteableTypeNode for FunctionSignatureNode {
                 write!(ob, "virtual ")?;
             }
             if self.function_class.is_extern_c() {
-                write!(ob, "extern \"C\"")?;
+                write!(ob, "extern \"C\" ")?;
             }
         }
 
@@ -380,7 +378,7 @@ impl WriteableTypeNode for PointerTypeNode {
         super::output_space_if_necessary(ob)?;
 
         if self.quals.is_unaligned() {
-            write!(ob, "__unaligned")?;
+            write!(ob, "__unaligned ")?;
         }
 
         match pointee {
@@ -876,7 +874,7 @@ impl WriteableNode for RttiBaseClassDescriptorNode {
     fn output(&self, _: &NodeCache, ob: &mut OutputBuffer, _: OutputFlags) -> Result<()> {
         write!(
             ob,
-            "`RTTI Base Class Descriptor at ({}, {}, {}, {})",
+            "`RTTI Base Class Descriptor at ({}, {}, {}, {})'",
             self.nv_offset, self.vbptr_offset, self.vbtable_offset, self.flags
         )
     }
@@ -903,12 +901,6 @@ impl NodeArrayNode {
             }
         }
         Ok(())
-    }
-
-    #[must_use]
-    pub(crate) fn from_node_list(mut nodes: Vec<NodeHandle<INode>>) -> Self {
-        nodes.reverse();
-        Self { nodes }
     }
 }
 
@@ -1149,6 +1141,7 @@ pub(crate) struct FunctionSymbolNode {
 
 impl WriteableNode for FunctionSymbolNode {
     fn output(&self, cache: &NodeCache, ob: &mut OutputBuffer, flags: OutputFlags) -> Result<()> {
+        self.signature.resolve(cache).output_pre(cache, ob, flags)?;
         super::output_space_if_necessary(ob)?;
         if let Some(name) = self.name {
             name.resolve(cache).output(cache, ob, flags)?;
