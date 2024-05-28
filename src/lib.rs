@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::similar_names,
+    clippy::struct_field_names,
+    clippy::too_many_lines
+)]
+
 mod cache;
 mod demangler;
 mod extensions;

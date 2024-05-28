@@ -72,6 +72,7 @@ pub(crate) use derived::{
     StructorIdentifierNode,
     TagTypeNode,
     TemplateParameterReferenceNode,
+    TemplateParameters,
     ThunkSignatureNode,
     VariableSymbolNode,
     VcallThunkIdentifierNode,

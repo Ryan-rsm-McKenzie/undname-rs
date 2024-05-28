@@ -64,6 +64,7 @@ use crate::{
         TagKind,
         TagTypeNode,
         TemplateParameterReferenceNode,
+        TemplateParameters,
         ThunkSignatureNode,
         TypeNode,
         VariableSymbolNode,
@@ -96,6 +97,7 @@ struct BackrefContext {
     names: ArrayVec<NodeHandle<NamedIdentifierNode>, 10>,
 }
 
+#[derive(Clone, Copy)]
 enum QualifierMangleMode {
     Drop,
     Mangle,
@@ -118,6 +120,7 @@ impl NameBackrefBehavior {
     }
 }
 
+#[derive(Clone, Copy)]
 enum FunctionIdentifierCodeGroup {
     Basic,
     Under,
@@ -143,9 +146,9 @@ impl Demangler {
         // It's still useful to demangle them. They're the only demangled entity
         // that doesn't start with a "?" but a ".".
         if mangled_name.starts_with(b".") {
-            self.demangle_typeinfo_name(mangled_name).map(|x| x.into())
+            self.demangle_typeinfo_name(mangled_name).map(Into::into)
         } else if mangled_name.starts_with(b"??@") {
-            self.demangle_md5_name(mangled_name).map(|x| x.into())
+            self.demangle_md5_name(mangled_name).map(Into::into)
         } else {
             mangled_name
                 .try_consume_byte(b'?')
@@ -420,7 +423,7 @@ impl Demangler {
                     Qualifiers::Q_None
                 }
             }
-            _ => Qualifiers::Q_None,
+            QualifierMangleMode::Drop => Qualifiers::Q_None,
         };
 
         if mangled_name.is_empty() {
@@ -428,31 +431,31 @@ impl Demangler {
         }
 
         let ty: NodeHandle<ITypeNode> = if mangled_name.is_tag_type() {
-            self.demangle_class_type(mangled_name).map(|x| x.into())
+            self.demangle_class_type(mangled_name).map(Into::into)
         } else if mangled_name.is_pointer_type() {
             match mangled_name.is_member_pointer() {
                 Some(true) => self
                     .demangle_member_pointer_type(mangled_name)
-                    .map(|x| x.into()),
-                Some(false) => self.demangle_pointer_type(mangled_name).map(|x| x.into()),
+                    .map(Into::into),
+                Some(false) => self.demangle_pointer_type(mangled_name).map(Into::into),
                 None => Err(Error::InvalidType),
             }
         } else if mangled_name.is_array_type() {
-            self.demangle_array_type(mangled_name).map(|x| x.into())
+            self.demangle_array_type(mangled_name).map(Into::into)
         } else if mangled_name.is_function_type() {
             if mangled_name.try_consume_str(b"$$A8@@").is_some() {
                 self.demangle_function_type(mangled_name, true)
-                    .map(|x| x.into())
+                    .map(Into::into)
             } else if mangled_name.try_consume_str(b"$$A6").is_some() {
                 self.demangle_function_type(mangled_name, false)
-                    .map(|x| x.into())
+                    .map(Into::into)
             } else {
                 Err(Error::InvalidType)
             }
         } else if mangled_name.is_custom_type() {
-            self.demangle_custom_type(mangled_name).map(|x| x.into())
+            self.demangle_custom_type(mangled_name).map(Into::into)
         } else {
-            self.demangle_primitive_type(mangled_name).map(|x| x.into())
+            self.demangle_primitive_type(mangled_name).map(Into::into)
         }?;
 
         ty.resolve_mut(&mut self.cache).append_quals(quals);
@@ -672,9 +675,8 @@ impl Demangler {
             let (quals, is_member) = Self::demangle_qualifiers(mangled_name)?;
             if is_member {
                 return Err(Error::InvalidArrayType);
-            } else {
-                quals
             }
+            quals
         } else {
             Qualifiers::Q_None
         };
@@ -764,7 +766,8 @@ impl Demangler {
             {
                 // parameter pack separator
                 continue;
-            } else if mangled_name.is_empty() {
+            }
+            if mangled_name.is_empty() {
                 return Err(Error::InvalidTemplateParameterList);
             }
 
@@ -1017,14 +1020,14 @@ impl Demangler {
         mangled_name: &mut &BStr,
     ) -> Result<NodeHandle<IIdentifierNode>> {
         if mangled_name.first().is_some_and(u8::is_ascii_digit) {
-            self.demangle_back_ref_name(mangled_name).map(|x| x.into())
+            self.demangle_back_ref_name(mangled_name).map(Into::into)
         } else if mangled_name.starts_with(b"?$") {
             self.demangle_template_instantiation_name(
                 mangled_name,
                 NameBackrefBehavior::NBB_Template,
             )
         } else {
-            self.demangle_simple_name(mangled_name).map(|x| x.into())
+            self.demangle_simple_name(mangled_name).map(Into::into)
         }
     }
 
@@ -1034,13 +1037,13 @@ impl Demangler {
         nbb: NameBackrefBehavior,
     ) -> Result<NodeHandle<IIdentifierNode>> {
         if mangled_name.first().is_some_and(u8::is_ascii_digit) {
-            self.demangle_back_ref_name(mangled_name).map(|x| x.into())
+            self.demangle_back_ref_name(mangled_name).map(Into::into)
         } else if mangled_name.starts_with(b"?$") {
             self.demangle_template_instantiation_name(mangled_name, nbb)
         } else if mangled_name.starts_with(b"?") {
             self.demangle_function_identifier_code(mangled_name)
         } else {
-            self.demangle_simple_name(mangled_name).map(|x| x.into())
+            self.demangle_simple_name(mangled_name).map(Into::into)
         }
     }
 
@@ -1058,10 +1061,9 @@ impl Demangler {
                 break Ok(self.cache.intern(qn));
             } else if mangled_name.is_empty() {
                 break Err(Error::InvalidNameScopeChain);
-            } else {
-                let node = self.demangle_name_scope_piece(mangled_name)?;
-                nodes.push(node.into());
             }
+            let node = self.demangle_name_scope_piece(mangled_name)?;
+            nodes.push(node.into());
         }
     }
 
@@ -1070,7 +1072,7 @@ impl Demangler {
         mangled_name: &mut &BStr,
     ) -> Result<NodeHandle<IIdentifierNode>> {
         if mangled_name.first().is_some_and(u8::is_ascii_digit) {
-            self.demangle_back_ref_name(mangled_name).map(|x| x.into())
+            self.demangle_back_ref_name(mangled_name).map(Into::into)
         } else if mangled_name.starts_with(b"?$") {
             self.demangle_template_instantiation_name(
                 mangled_name,
@@ -1078,12 +1080,12 @@ impl Demangler {
             )
         } else if mangled_name.starts_with(b"?A") {
             self.demangle_anonymous_namespace_name(mangled_name)
-                .map(|x| x.into())
+                .map(Into::into)
         } else if mangled_name.starts_with_local_scope_pattern() {
             self.demangle_locally_scoped_name_piece(mangled_name)
-                .map(|x| x.into())
+                .map(Into::into)
         } else {
-            self.demangle_simple_name(mangled_name).map(|x| x.into())
+            self.demangle_simple_name(mangled_name).map(Into::into)
         }
     }
 
@@ -1141,7 +1143,6 @@ impl Demangler {
     }
 
     fn translate_intrinsic_function_code(
-        &mut self,
         ch: u8,
         group: FunctionIdentifierCodeGroup,
     ) -> Result<Option<IntrinsicFunctionKind>> {
@@ -1318,9 +1319,9 @@ impl Demangler {
             }
             FunctionIdentifierCodeGroup::DoubleUnder if ch == b'K' => self
                 .demangle_literal_operator_identifier(mangled_name)
-                .map(|x| x.into()),
+                .map(Into::into),
             _ => {
-                let operator = self.translate_intrinsic_function_code(ch, group)?;
+                let operator = Self::translate_intrinsic_function_code(ch, group)?;
                 let node = IntrinsicFunctionIdentifierNode::new(operator);
                 Ok(self.cache.intern(node).into())
             }
@@ -1572,7 +1573,7 @@ impl Demangler {
 
             let fsn = self.demangle_function_encoding(mangled_name)?;
             let dsin = self.cache.intern(DynamicStructorIdentifierNode {
-                template_params: Default::default(),
+                template_params: TemplateParameters::default(),
                 identifier: variable.into(),
                 is_destructor,
             });
@@ -1590,7 +1591,7 @@ impl Demangler {
                 let dstn = {
                     let fsn = fsn.resolve(&self.cache);
                     let x = DynamicStructorIdentifierNode {
-                        template_params: Default::default(),
+                        template_params: TemplateParameters::default(),
                         identifier: fsn.name.ok_or(Error::InvalidInitFiniStub)?.into(),
                         is_destructor,
                     };
@@ -1613,8 +1614,8 @@ impl Demangler {
         mangled_name: &mut &BStr,
     ) -> Result<NodeHandle<NamedIdentifierNode>> {
         let name = NamedIdentifierNode {
-            template_params: Default::default(),
             name: Self::demangle_simple_string(mangled_name)?.to_owned(),
+            ..Default::default()
         };
         Ok(self.cache.intern(name))
     }
@@ -1727,12 +1728,11 @@ impl Demangler {
             while mangled_name.try_consume_byte(b'@').is_none() {
                 if mangled_name.is_empty() {
                     return Err(Error::InvalidStringLiteral);
-                } else {
-                    let char = Self::demangle_char_literal(mangled_name)?;
-                    string_bytes
-                        .try_push(char)
-                        .map_err(|_| Error::InvalidStringLiteral)?;
                 }
+                let char = Self::demangle_char_literal(mangled_name)?;
+                string_bytes
+                    .try_push(char)
+                    .map_err(|_| Error::InvalidStringLiteral)?;
             }
 
             let is_truncated = string_byte_len > string_bytes.len() as u64;
@@ -1957,16 +1957,15 @@ impl Demangler {
                         Ok((c1 << 4) | c2)
                     }
                     c if c.is_ascii_digit() => {
-                        let i = c - b'0';
                         const LOOKUP: [u8; 10] = [
                             b',', b'/', b'\\', b':', b'.', b' ', b'\n', b'\t', b'\'', b'-',
                         ];
+                        let i = c - b'0';
                         // SAFETY: the range contains 10 numbers, and there are 10 ascii digits
                         let result = unsafe { LOOKUP.get_unchecked(i as usize) };
                         Ok(*result)
                     }
                     c if c.is_ascii_lowercase() => {
-                        let i = c - b'a';
                         const LOOKUP: [u8; 26] = {
                             let mut result = [0xE1u8; 26];
                             let mut i = 0u8;
@@ -1978,12 +1977,12 @@ impl Demangler {
                                 }
                             }
                         };
+                        let i = c - b'a';
                         // SAFETY: the range contains 26 numbers, and there are 26 ascii lowercase characters
                         let result = unsafe { LOOKUP.get_unchecked(i as usize) };
                         Ok(*result)
                     }
                     c if c.is_ascii_uppercase() => {
-                        let i = c - b'A';
                         const LOOKUP: [u8; 26] = {
                             let mut result = [0xC1u8; 26];
                             let mut i = 0u8;
@@ -1995,6 +1994,7 @@ impl Demangler {
                                 }
                             }
                         };
+                        let i = c - b'A';
                         // SAFETY: the range contains 26 numbers, and there are 26 ascii uppercase characters
                         let result = unsafe { LOOKUP.get_unchecked(i as usize) };
                         Ok(*result)
@@ -2147,10 +2147,7 @@ impl Demangler {
             // are null, it's a char16. Otherwise it's a char8. This obviously isn't
             // perfect and is biased towards languages that have ascii alphabets, but this
             // was always going to be best effort since the encoding is lossy.
-            let embedded_nulls: usize = string_bytes
-                .iter()
-                .map(|&x| if x == 0 { 1 } else { 0 })
-                .sum();
+            let embedded_nulls: usize = string_bytes.iter().map(|&x| usize::from(x == 0)).sum();
             if embedded_nulls >= 2 * string_bytes.len() / 3 && num_bytes % 4 == 0 {
                 Some(4)
             } else if embedded_nulls >= string_bytes.len() / 3 {

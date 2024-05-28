@@ -481,7 +481,6 @@ pub(crate) struct ArrayTypeNode {
 
 impl ArrayTypeNode {
     fn output_one_dimension(
-        &self,
         cache: &NodeCache,
         ob: &mut OutputBuffer,
         flags: OutputFlags,
@@ -507,10 +506,10 @@ impl ArrayTypeNode {
     ) -> Result<()> {
         let dimensions = self.dimensions.resolve(cache);
         if let Some((&first, rest)) = dimensions.nodes.split_first() {
-            self.output_one_dimension(cache, ob, flags, first)?;
+            Self::output_one_dimension(cache, ob, flags, first)?;
             for &handle in rest {
                 write!(ob, "][")?;
-                self.output_one_dimension(cache, ob, flags, handle)?;
+                Self::output_one_dimension(cache, ob, flags, handle)?;
             }
         }
 
@@ -583,7 +582,7 @@ impl WriteableTypeNode for CustomTypeNode {
 pub(crate) struct TemplateParameters(pub(crate) Option<NodeHandle<NodeArrayNode>>);
 
 impl TemplateParameters {
-    fn output(&self, cache: &NodeCache, ob: &mut OutputBuffer, flags: OutputFlags) -> Result<()> {
+    fn output(self, cache: &NodeCache, ob: &mut OutputBuffer, flags: OutputFlags) -> Result<()> {
         if let Some(this) = self.map(|x| x.resolve(cache)) {
             write!(ob, "<")?;
             this.output(cache, ob, flags)?;
@@ -899,7 +898,7 @@ impl NodeArrayNode {
         if let Some((&first, rest)) = self.nodes.split_first() {
             first.resolve(cache).output(cache, ob, flags)?;
             for &node in rest {
-                write!(ob, "{}", separator)?;
+                write!(ob, "{separator}")?;
                 node.resolve(cache).output(cache, ob, flags)?;
             }
         }
@@ -927,7 +926,7 @@ pub(crate) struct QualifiedNameNode {
 impl QualifiedNameNode {
     #[must_use]
     pub(crate) fn get_unqualified_identifier(
-        &self,
+        self,
         cache: &NodeCache,
     ) -> Option<NodeHandle<IIdentifierNode>> {
         let components = self.components.resolve(cache);

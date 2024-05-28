@@ -167,13 +167,11 @@ impl BStrExt for &BStr {
     }
 
     fn is_tag_type(self) -> bool {
-        matches!(
-            self.first(),
-            Some(b'T') // union
-                | Some(b'U') // struct
-                | Some(b'V') // class
-                | Some(b'W') // enum
-        )
+        // T -> union
+        // U -> struct
+        // V -> class
+        // W -> enum
+        matches!(self.first(), Some(b'T' | b'U' | b'V' | b'W'))
     }
 
     fn is_pointer_type(self) -> bool {
@@ -181,14 +179,12 @@ impl BStrExt for &BStr {
             // foo &&
             true
         } else {
-            matches!(
-                self.first(),
-                Some(b'A') // foo &
-                    | Some(b'P') // foo *
-                    | Some(b'Q') // foo *const
-                    | Some(b'R') // foo *volatile
-                    | Some(b'S') // foo *const volatile
-            )
+            // A -> foo &
+            // P -> foo *
+            // Q -> foo *const
+            // R -> foo *volatile
+            // S -> foo *const volatile
+            matches!(self.first(), Some(b'A' | b'P' | b'Q' | b'R' | b'S'))
         }
     }
 
@@ -227,8 +223,8 @@ impl BStrExt for &BStr {
 
         // The next value should be either ABCD (non-member) or QRST (member).
         match self.first() {
-            Some(b'A') | Some(b'B') | Some(b'C') | Some(b'D') => Some(false),
-            Some(b'Q') | Some(b'R') | Some(b'S') | Some(b'T') => Some(true),
+            Some(b'A' | b'B' | b'C' | b'D') => Some(false),
+            Some(b'Q' | b'R' | b'S' | b'T') => Some(true),
             _ => None,
         }
     }
