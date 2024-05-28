@@ -69,6 +69,7 @@ macro_rules! impl_upcast {
     };
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Copy)]
 pub(crate) enum Node<
     TypeT,
@@ -168,38 +169,31 @@ impl_downcast!(NodeConst::Symbol => SymbolNodeConst<'node>);
 
 impl<'node> Downcast<SignatureNodeConst<'node>> for NodeConst<'node> {
     fn downcast(self) -> Option<SignatureNodeConst<'node>> {
-        if let Self::Type(outer) = self {
-            if let TypeNode::Signature(inner) = outer {
-                return Some(inner);
-            }
+        if let Self::Type(TypeNode::Signature(inner)) = self {
+            Some(inner)
+        } else {
+            None
         }
-        None
     }
 }
 
 impl<'node> Downcast<&'node FunctionSignatureNode> for NodeConst<'node> {
     fn downcast(self) -> Option<&'node FunctionSignatureNode> {
-        if let Self::Type(outer) = self {
-            if let TypeNode::Signature(inner) = outer {
-                if let SignatureNode::FunctionSignature(node) = inner {
-                    return Some(node);
-                }
-            }
+        if let Self::Type(TypeNode::Signature(SignatureNode::FunctionSignature(node))) = self {
+            Some(node)
+        } else {
+            None
         }
-        None
     }
 }
 
 impl<'node> Downcast<&'node ThunkSignatureNode> for NodeConst<'node> {
     fn downcast(self) -> Option<&'node ThunkSignatureNode> {
-        if let Self::Type(outer) = self {
-            if let TypeNode::Signature(inner) = outer {
-                if let SignatureNode::ThunkSignature(node) = inner {
-                    return Some(node);
-                }
-            }
+        if let Self::Type(TypeNode::Signature(SignatureNode::ThunkSignature(node))) = self {
+            Some(node)
+        } else {
+            None
         }
-        None
     }
 }
 
@@ -283,38 +277,31 @@ impl_downcast!(NodeMut::Symbol => SymbolNodeMut<'node>);
 
 impl<'node> Downcast<SignatureNodeMut<'node>> for NodeMut<'node> {
     fn downcast(self) -> Option<SignatureNodeMut<'node>> {
-        if let Self::Type(outer) = self {
-            if let TypeNode::Signature(inner) = outer {
-                return Some(inner);
-            }
+        if let Self::Type(TypeNode::Signature(inner)) = self {
+            Some(inner)
+        } else {
+            None
         }
-        None
     }
 }
 
 impl<'node> Downcast<&'node mut FunctionSignatureNode> for NodeMut<'node> {
     fn downcast(self) -> Option<&'node mut FunctionSignatureNode> {
-        if let Self::Type(outer) = self {
-            if let TypeNode::Signature(inner) = outer {
-                if let SignatureNode::FunctionSignature(node) = inner {
-                    return Some(node);
-                }
-            }
+        if let Self::Type(TypeNode::Signature(SignatureNode::FunctionSignature(node))) = self {
+            Some(node)
+        } else {
+            None
         }
-        None
     }
 }
 
 impl<'node> Downcast<&'node mut ThunkSignatureNode> for NodeMut<'node> {
     fn downcast(self) -> Option<&'node mut ThunkSignatureNode> {
-        if let Self::Type(outer) = self {
-            if let TypeNode::Signature(inner) = outer {
-                if let SignatureNode::ThunkSignature(node) = inner {
-                    return Some(node);
-                }
-            }
+        if let Self::Type(TypeNode::Signature(SignatureNode::ThunkSignature(node))) = self {
+            Some(node)
+        } else {
+            None
         }
-        None
     }
 }
 
@@ -418,23 +405,21 @@ impl_downcast!(TypeNodeConst::CustomType => &'node CustomTypeNode);
 
 impl<'node> Downcast<&'node FunctionSignatureNode> for TypeNodeConst<'node> {
     fn downcast(self) -> Option<&'node FunctionSignatureNode> {
-        if let Self::Signature(outer) = self {
-            if let SignatureNode::FunctionSignature(inner) = outer {
-                return Some(inner);
-            }
+        if let Self::Signature(SignatureNode::FunctionSignature(inner)) = self {
+            Some(inner)
+        } else {
+            None
         }
-        None
     }
 }
 
 impl<'node> Downcast<&'node ThunkSignatureNode> for TypeNodeConst<'node> {
     fn downcast(self) -> Option<&'node ThunkSignatureNode> {
-        if let Self::Signature(outer) = self {
-            if let SignatureNode::ThunkSignature(inner) = outer {
-                return Some(inner);
-            }
+        if let Self::Signature(SignatureNode::ThunkSignature(inner)) = self {
+            Some(inner)
+        } else {
+            None
         }
-        None
     }
 }
 
@@ -551,23 +536,21 @@ impl_downcast!(TypeNodeMut::CustomType => &'node mut CustomTypeNode);
 
 impl<'node> Downcast<&'node mut FunctionSignatureNode> for TypeNodeMut<'node> {
     fn downcast(self) -> Option<&'node mut FunctionSignatureNode> {
-        if let Self::Signature(outer) = self {
-            if let SignatureNode::FunctionSignature(inner) = outer {
-                return Some(inner);
-            }
+        if let Self::Signature(SignatureNode::FunctionSignature(inner)) = self {
+            Some(inner)
+        } else {
+            None
         }
-        None
     }
 }
 
 impl<'node> Downcast<&'node mut ThunkSignatureNode> for TypeNodeMut<'node> {
     fn downcast(self) -> Option<&'node mut ThunkSignatureNode> {
-        if let Self::Signature(outer) = self {
-            if let SignatureNode::ThunkSignature(inner) = outer {
-                return Some(inner);
-            }
+        if let Self::Signature(SignatureNode::ThunkSignature(inner)) = self {
+            Some(inner)
+        } else {
+            None
         }
-        None
     }
 }
 

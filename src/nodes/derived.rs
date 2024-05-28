@@ -171,15 +171,12 @@ impl WriteableTypeNode for FunctionSignatureNode {
         }
 
         if !flags.no_member_type() {
-            if !self.function_class.is_global() {
-                if self.function_class.is_static() {
-                    write!(ob, "static ")?;
-                }
+            if !self.function_class.is_global() && self.function_class.is_static() {
+                write!(ob, "static ")?;
             }
             if self.function_class.is_virtual() {
                 write!(ob, "virtual ")?;
             }
-
             if self.function_class.is_extern_c() {
                 write!(ob, "extern \"C\"")?;
             }
@@ -958,6 +955,7 @@ pub(crate) struct TemplateParameterReferenceNode {
     pub(crate) symbol: Option<NodeHandle<ISymbolNode>>,
     pub(crate) thunk_offsets: ArrayVec<i64, 3>,
     pub(crate) affinity: Option<PointerAffinity>,
+    #[allow(unused)]
     pub(crate) is_member_pointer: bool,
 }
 
@@ -971,7 +969,7 @@ impl WriteableNode for TemplateParameterReferenceNode {
 
         if let Some(symbol) = self.symbol.map(|x| x.resolve(cache)) {
             symbol.output(cache, ob, flags)?;
-            if self.thunk_offsets.len() > 0 {
+            if !self.thunk_offsets.is_empty() {
                 write!(ob, ", ")?;
             }
         }

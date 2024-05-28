@@ -548,7 +548,6 @@ impl Demangler {
             let ext_quals = Self::demangle_pointer_ext_qualifiers(mangled_name);
             quals |= ext_quals;
             self.demangle_type(mangled_name, QualifierMangleMode::Mangle)?
-                .into()
         };
 
         let pointer = PointerTypeNode {
@@ -780,23 +779,25 @@ impl Demangler {
                 .or_else(|| mangled_name.try_consume_str(b"$J"))
             {
                 // Pointer to member
-                let mut tprn = TemplateParameterReferenceNode::default();
-                tprn.is_member_pointer = true;
-                tprn.affinity = Some(PointerAffinity::Pointer);
-                tprn.symbol = if mangled_name.starts_with(b"?") {
-                    let symbol = self.do_parse(mangled_name)?;
-                    let identifier = symbol
-                        .resolve(&self.cache)
-                        .get_name()
-                        .and_then(|x| {
-                            x.resolve(&self.cache)
-                                .get_unqualified_identifier(&self.cache)
-                        })
-                        .ok_or(Error::InvalidTemplateParameterList)?;
-                    self.memorize_identifier(identifier)?;
-                    Some(symbol)
-                } else {
-                    None
+                let mut tprn = TemplateParameterReferenceNode {
+                    symbol: if mangled_name.starts_with(b"?") {
+                        let symbol = self.do_parse(mangled_name)?;
+                        let identifier = symbol
+                            .resolve(&self.cache)
+                            .get_name()
+                            .and_then(|x| {
+                                x.resolve(&self.cache)
+                                    .get_unqualified_identifier(&self.cache)
+                            })
+                            .ok_or(Error::InvalidTemplateParameterList)?;
+                        self.memorize_identifier(identifier)?;
+                        Some(symbol)
+                    } else {
+                        None
+                    },
+                    affinity: Some(PointerAffinity::Pointer),
+                    is_member_pointer: true,
+                    ..Default::default()
                 };
 
                 // 1 - single inheritance       <name>
@@ -824,17 +825,21 @@ impl Demangler {
                     .try_consume_str(b"$E")
                     .ok_or(Error::InvalidTemplateParameterList)?;
                 // Reference to symbol
-                let mut tprn = TemplateParameterReferenceNode::default();
-                tprn.symbol = Some(self.do_parse(mangled_name)?);
-                tprn.affinity = Some(PointerAffinity::Reference);
+                let tprn = TemplateParameterReferenceNode {
+                    symbol: Some(self.do_parse(mangled_name)?),
+                    affinity: Some(PointerAffinity::Reference),
+                    ..Default::default()
+                };
                 nodes.push(self.cache.intern(tprn).into());
             } else if let Some(string) = mangled_name
                 .try_consume_str(b"$F")
                 .or_else(|| mangled_name.try_consume_str(b"$G"))
             {
                 // Data member pointer.
-                let mut tprn = TemplateParameterReferenceNode::default();
-                tprn.is_member_pointer = true;
+                let mut tprn = TemplateParameterReferenceNode {
+                    is_member_pointer: true,
+                    ..Default::default()
+                };
 
                 let inheritance_specifier = string[1];
                 let count = match inheritance_specifier {
@@ -913,7 +918,7 @@ impl Demangler {
         let (number, is_negative) = Self::demangle_number(mangled_name)?;
         number
             .try_into()
-            .map(|x| if is_negative { x * -1 } else { x })
+            .map(|x: i64| if is_negative { -x } else { x })
             .map_err(|_| Error::InvalidSigned)
     }
 
@@ -1669,7 +1674,7 @@ impl Demangler {
 
         // Encoded Length
         let (mut string_byte_len, is_negative) = Self::demangle_number(mangled_name)?;
-        if is_negative || string_byte_len < is_wchar_t.then(|| 2).unwrap_or(1) {
+        if is_negative || string_byte_len < if is_wchar_t { 2 } else { 1 } {
             return Err(Error::InvalidStringLiteral);
         }
 
@@ -2159,8 +2164,8 @@ impl Demangler {
             }
 
             let mut result: u32 = 0;
-            for i in 0..char_bytes {
-                let c: u32 = string_bytes[i].into();
+            for (i, &c) in string_bytes.iter().enumerate().take(char_bytes) {
+                let c: u32 = c.into();
                 result |= c << (8 * i);
             }
 

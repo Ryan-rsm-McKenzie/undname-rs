@@ -3,6 +3,7 @@ use bstr::{
     ByteSlice as _,
 };
 
+#[allow(clippy::wrong_self_convention)]
 pub(crate) trait BStrExt: Sized {
     #[must_use]
     fn try_consume(&mut self) -> Option<u8>;
@@ -54,8 +55,8 @@ impl BStrExt for &BStr {
     fn try_consume_n(&mut self, n: usize) -> Option<Self> {
         if n <= self.len() {
             let (first, rest) = (&self[..n], &self[n..self.len() - n]);
-            *self = rest.into();
-            Some(first.into())
+            *self = rest;
+            Some(first)
         } else {
             None
         }
@@ -142,13 +143,9 @@ impl BStrExt for &BStr {
         {
             return false;
         }
-        loop {
-            if let Some(c) = candidate.try_consume() {
-                if !c.is_rebased_ascii_hexdigit() {
-                    return false;
-                }
-            } else {
-                break;
+        while let Some(c) = candidate.try_consume() {
+            if !c.is_rebased_ascii_hexdigit() {
+                return false;
             }
         }
 
@@ -235,6 +232,7 @@ impl BStrExt for &BStr {
     }
 }
 
+#[allow(clippy::wrong_self_convention)]
 pub(crate) trait U8Ext: Sized {
     fn is_rebased_ascii_hexdigit(self) -> bool;
     fn try_convert_rebased_ascii_hexdigit_to_number(self) -> Option<Self>;

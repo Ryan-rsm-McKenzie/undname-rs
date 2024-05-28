@@ -301,7 +301,7 @@ impl<T> NodeHandle<T> {
     fn new(id: NonMaxUsize) -> Self {
         Self {
             id,
-            marker: PhantomData::default(),
+            marker: PhantomData,
         }
     }
 
@@ -338,7 +338,7 @@ impl<T> NodeHandle<T> {
 
 impl<T> Clone for NodeHandle<T> {
     fn clone(&self) -> Self {
-        Self::new(self.id)
+        *self
     }
 }
 
@@ -472,37 +472,34 @@ impl_downcast!(ISymbolNode, SymbolNode::FunctionSymbol => FunctionSymbolNode);
 
 impl Downcast<ISignatureNode> for NodeHandle<INode> {
     fn downcast(self, cache: &NodeCache) -> Option<NodeHandle<ISignatureNode>> {
-        if let Node::Type(outer) = self.resolve(cache) {
-            if let TypeNode::Signature(_) = outer {
-                return Some(NodeHandle::new(self.id));
-            }
+        if let Node::Type(TypeNode::Signature(_)) = self.resolve(cache) {
+            Some(NodeHandle::new(self.id))
+        } else {
+            None
         }
-        None
     }
 }
 
 impl Downcast<FunctionSignatureNode> for NodeHandle<INode> {
     fn downcast(self, cache: &NodeCache) -> Option<NodeHandle<FunctionSignatureNode>> {
-        if let Node::Type(outer) = self.resolve(cache) {
-            if let TypeNode::Signature(inner) = outer {
-                if let SignatureNode::FunctionSignature(_) = inner {
-                    return Some(NodeHandle::new(self.id));
-                }
-            }
+        if let Node::Type(TypeNode::Signature(SignatureNode::FunctionSignature(_))) =
+            self.resolve(cache)
+        {
+            Some(NodeHandle::new(self.id))
+        } else {
+            None
         }
-        None
     }
 }
 
 impl Downcast<ThunkSignatureNode> for NodeHandle<INode> {
     fn downcast(self, cache: &NodeCache) -> Option<NodeHandle<ThunkSignatureNode>> {
-        if let Node::Type(outer) = self.resolve(cache) {
-            if let TypeNode::Signature(inner) = outer {
-                if let SignatureNode::ThunkSignature(_) = inner {
-                    return Some(NodeHandle::new(self.id));
-                }
-            }
+        if let Node::Type(TypeNode::Signature(SignatureNode::ThunkSignature(_))) =
+            self.resolve(cache)
+        {
+            Some(NodeHandle::new(self.id))
+        } else {
+            None
         }
-        None
     }
 }
