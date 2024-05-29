@@ -34,8 +34,6 @@ use crate::{
         Md5SymbolNode,
         NamedIdentifierNode,
         NodeArrayNode,
-        OutputBuffer,
-        OutputFlags,
         PointerTypeNode,
         PrimitiveTypeNode,
         QualifiedNameNode,
@@ -52,6 +50,8 @@ use crate::{
         WriteableNode,
         WriteableTypeNode,
     },
+    OutputBuffer,
+    OutputFlags,
 };
 
 pub(crate) trait Downcast<To> {

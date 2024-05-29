@@ -48,8 +48,6 @@ use crate::{
         Md5SymbolNode,
         NamedIdentifierNode,
         NodeArrayNode,
-        OutputBuffer,
-        OutputFlags,
         PointerAffinity,
         PointerTypeNode,
         PrimitiveKind,
@@ -72,6 +70,8 @@ use crate::{
         WriteableNode as _,
     },
     Error,
+    OutputBuffer,
+    OutputFlags,
     Result,
 };
 use arrayvec::ArrayVec;
@@ -960,7 +960,7 @@ impl Demangler {
         let mut ob = OutputBuffer::new();
         identifier
             .resolve(&self.cache)
-            .output(&self.cache, &mut ob, OutputFlags::OF_Default)?;
+            .output(&self.cache, &mut ob, OutputFlags::default())?;
         self.memorize_string(BStr::new(&ob[..]))
     }
 

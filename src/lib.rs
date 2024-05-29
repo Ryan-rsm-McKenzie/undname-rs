@@ -28,10 +28,7 @@ mod nodes;
 #[cfg(test)]
 mod tests;
 
-use crate::{
-    demangler::Demangler,
-    nodes::OutputFlags,
-};
+use crate::demangler::Demangler;
 pub use bstr::{
     BStr,
     BString,
@@ -40,6 +37,10 @@ pub use bstr::{
 };
 use std::io;
 
+type OutputFlags = Flags;
+type OutputBuffer = Vec<u8>;
+
+#[non_exhaustive]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to demangle anonymous namespace name")]
@@ -180,58 +181,51 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct Flags(OutputFlags);
+bitflags::bitflags! {
+    #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+    pub struct Flags: u8 {
+        const NO_CALLING_CONVENTION = 1 << 0;
+        const NO_TAG_SPECIFIER = 1 << 1;
+        const NO_ACCESS_SPECIFIER = 1 << 2;
+        const NO_MEMBER_TYPE = 1 << 3;
+        const NO_RETURN_TYPE = 1 << 4;
+        const NO_VARIABLE_TYPE = 1 << 5;
+    }
+}
 
 impl Flags {
     #[must_use]
-    pub const fn no_access_specifier(self, value: bool) -> Self {
-        if value {
-            Self(self.0.union(OutputFlags::OF_NoAccessSpecifier))
-        } else {
-            Self(self.0.difference(OutputFlags::OF_NoAccessSpecifier))
-        }
+    fn no_calling_convention(self) -> bool {
+        self.contains(Self::NO_CALLING_CONVENTION)
     }
 
     #[must_use]
-    pub const fn no_calling_convention(self, value: bool) -> Self {
-        if value {
-            Self(self.0.union(OutputFlags::OF_NoCallingConvention))
-        } else {
-            Self(self.0.difference(OutputFlags::OF_NoCallingConvention))
-        }
+    fn no_tag_specifier(self) -> bool {
+        self.contains(Self::NO_TAG_SPECIFIER)
     }
 
     #[must_use]
-    pub const fn no_member_type(self, value: bool) -> Self {
-        if value {
-            Self(self.0.union(OutputFlags::OF_NoMemberType))
-        } else {
-            Self(self.0.difference(OutputFlags::OF_NoMemberType))
-        }
+    fn no_access_specifier(self) -> bool {
+        self.contains(Self::NO_ACCESS_SPECIFIER)
     }
 
     #[must_use]
-    pub const fn no_return_type(self, value: bool) -> Self {
-        if value {
-            Self(self.0.union(OutputFlags::OF_NoReturnType))
-        } else {
-            Self(self.0.difference(OutputFlags::OF_NoReturnType))
-        }
+    fn no_member_type(self) -> bool {
+        self.contains(Self::NO_MEMBER_TYPE)
     }
 
     #[must_use]
-    pub const fn no_variable_type(self, value: bool) -> Self {
-        if value {
-            Self(self.0.union(OutputFlags::OF_NoVariableType))
-        } else {
-            Self(self.0.difference(OutputFlags::OF_NoVariableType))
-        }
+    fn no_return_type(self) -> bool {
+        self.contains(Self::NO_RETURN_TYPE)
+    }
+
+    #[must_use]
+    fn no_variable_type(self) -> bool {
+        self.contains(Self::NO_VARIABLE_TYPE)
     }
 }
 
 pub fn demangle(mangled_name: &BStr, flags: Flags) -> Result<BString> {
     let mut d = Demangler::default();
-    d.parse(mangled_name, flags.0)
+    d.parse(mangled_name, flags)
 }

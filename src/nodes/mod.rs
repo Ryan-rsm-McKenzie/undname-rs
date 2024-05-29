@@ -47,7 +47,11 @@ mod intermediate;
 //     ├── VariableSymbolNode
 //     └── FunctionSymbolNode
 
-use crate::cache::NodeCache;
+use crate::{
+    cache::NodeCache,
+    OutputBuffer,
+    OutputFlags,
+};
 pub(crate) use derived::{
     ArrayTypeNode,
     ConversionOperatorIdentifierNode,
@@ -155,53 +159,6 @@ fn output_space_if_necessary(ob: &mut Vec<u8>) -> Result<()> {
         }
     }
     Ok(())
-}
-
-pub(crate) type OutputBuffer = Vec<u8>;
-
-bitflags::bitflags! {
-    #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-    pub(crate) struct OutputFlags: u8 {
-        const OF_Default = 0;
-        const OF_NoCallingConvention = 1;
-        const OF_NoTagSpecifier = 2;
-        const OF_NoAccessSpecifier = 4;
-        const OF_NoMemberType = 8;
-        const OF_NoReturnType = 16;
-        const OF_NoVariableType = 32;
-    }
-}
-
-impl OutputFlags {
-    #[must_use]
-    fn no_calling_convention(self) -> bool {
-        self.contains(Self::OF_NoCallingConvention)
-    }
-
-    #[must_use]
-    fn no_tag_specifier(self) -> bool {
-        self.contains(Self::OF_NoTagSpecifier)
-    }
-
-    #[must_use]
-    fn no_access_specifier(self) -> bool {
-        self.contains(Self::OF_NoAccessSpecifier)
-    }
-
-    #[must_use]
-    fn no_member_type(self) -> bool {
-        self.contains(Self::OF_NoMemberType)
-    }
-
-    #[must_use]
-    fn no_return_type(self) -> bool {
-        self.contains(Self::OF_NoReturnType)
-    }
-
-    #[must_use]
-    fn no_variable_type(self) -> bool {
-        self.contains(Self::OF_NoVariableType)
-    }
 }
 
 pub(crate) trait WriteableNode {

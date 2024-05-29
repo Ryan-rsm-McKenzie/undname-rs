@@ -1710,43 +1710,18 @@ fn test_options() {
             mangled_name,
             no_calling_conv,
             false,
-            Flags::default().no_calling_convention(true),
+            Flags::NO_CALLING_CONVENTION,
         );
-        do_test(
-            mangled_name,
-            no_return,
-            false,
-            Flags::default().no_return_type(true),
-        );
-        do_test(
-            mangled_name,
-            no_access,
-            false,
-            Flags::default().no_access_specifier(true),
-        );
-        do_test(
-            mangled_name,
-            no_member_type,
-            false,
-            Flags::default().no_member_type(true),
-        );
+        do_test(mangled_name, no_return, false, Flags::NO_RETURN_TYPE);
+        do_test(mangled_name, no_access, false, Flags::NO_ACCESS_SPECIFIER);
+        do_test(mangled_name, no_member_type, false, Flags::NO_MEMBER_TYPE);
         do_test(
             mangled_name,
             no_variable_type,
             false,
-            Flags::default().no_variable_type(true),
+            Flags::NO_VARIABLE_TYPE,
         );
-        do_test(
-            mangled_name,
-            no_all,
-            false,
-            Flags::default()
-                .no_access_specifier(true)
-                .no_calling_convention(true)
-                .no_member_type(true)
-                .no_return_type(true)
-                .no_variable_type(true),
-        );
+        do_test(mangled_name, no_all, false, Flags::all());
     };
 
     test_options(

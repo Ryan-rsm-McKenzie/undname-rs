@@ -29,8 +29,6 @@ use crate::{
         ISymbolNode,
         ITypeNode,
         IntrinsicFunctionKind,
-        OutputBuffer,
-        OutputFlags,
         PointerAffinity,
         PrimitiveKind,
         Qualifiers,
@@ -41,6 +39,8 @@ use crate::{
         WriteableNode,
         WriteableTypeNode,
     },
+    OutputBuffer,
+    OutputFlags,
 };
 use arrayvec::ArrayVec;
 use bstr::{
@@ -370,7 +370,7 @@ impl WriteableTypeNode for PointerTypeNode {
         if let TypeNode::Signature(sig) = pointee {
             // If this is a pointer to a function, don't output the calling convention.
             // It needs to go inside the parentheses.
-            sig.output_pre(cache, ob, OutputFlags::OF_NoCallingConvention)?;
+            sig.output_pre(cache, ob, OutputFlags::NO_CALLING_CONVENTION)?;
         } else {
             pointee.output_pre(cache, ob, flags)?;
         }
