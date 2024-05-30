@@ -10,6 +10,7 @@ bitflags = "2.5.0"
 bstr = "1.9.1"
 bumpalo = "3.16.0"
 nonmax = "0.5.5"
+smallvec = "1.13.2"
 thiserror = "1.0.61"
 
 [dev-dependencies]

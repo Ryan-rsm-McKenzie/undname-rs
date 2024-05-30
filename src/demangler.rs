@@ -99,6 +99,7 @@ use bstr::{
     BString,
     ByteSlice as _,
 };
+use smallvec::SmallVec;
 use std::{
     io::{
         self,
@@ -721,7 +722,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         }
 
         let dimensions = {
-            let mut nodes = Vec::new();
+            let mut nodes = SmallVec::<[_; 8]>::new();
             for _ in 0..rank {
                 let (value, is_negative) = Self::demangle_number(mangled_name)?;
                 if is_negative {
@@ -772,7 +773,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         }
 
         let na = {
-            let mut nodes = Vec::<NodeHandle<INode>>::new();
+            let mut nodes = SmallVec::<[NodeHandle<INode>; 8]>::new();
             // TODO: llvm infinite loops here if mangled_name is ever empty... bug?
             // https://github.com/llvm/llvm-project/blob/bafda89a0944d947fc4b3b5663185e07a397ac30/llvm/lib/Demangle/MicrosoftDemangle.cpp#L2183-L2184
             while !mangled_name
@@ -832,7 +833,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<NodeArray>> {
         // Template parameter lists don't participate in back-referencing.
-        let mut nodes = Vec::<NodeHandle<INode>>::new();
+        let mut nodes = SmallVec::<[NodeHandle<INode>; 8]>::new();
 
         while mangled_name.try_consume_byte(b'@').is_none() {
             if mangled_name.try_consume_str(b"$S").is_some()
@@ -1155,7 +1156,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         mangled_name: &mut &'string BStr,
         unqualified_name: NodeHandle<IIdentifierNode>,
     ) -> Result<NodeHandle<QualifiedName>> {
-        let mut nodes = Vec::new();
+        let mut nodes = SmallVec::<[_; 8]>::new();
         nodes.push(unqualified_name.into());
         loop {
             if mangled_name.try_consume_byte(b'@').is_some() {
