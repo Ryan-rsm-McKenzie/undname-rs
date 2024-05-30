@@ -12,4 +12,18 @@ nonmax = "0.5.5"
 thiserror = "1.0.61"
 
 [dev-dependencies]
+criterion = "0.5.1"
 memchr = "2.7.2"
+msvc-demangler = "0.10.1"
+
+[[bench]]
+harness = false
+name = "comparison"
+
+[target."cfg(windows)".dev-dependencies]
+windows = {version = "0.56.0", features = [
+  "Win32_System_Diagnostics_Debug",
+]}
+
+[profile.release]
+debug = 1
