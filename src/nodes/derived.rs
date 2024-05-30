@@ -14,8 +14,11 @@
 
 use crate::{
     cache::{
+        NodeArray,
         NodeCache,
         NodeHandle,
+        QualifiedName,
+        VariableSymbol,
     },
     nodes::{
         CallingConv,
@@ -39,16 +42,15 @@ use crate::{
         WriteableNode,
         WriteableTypeNode,
     },
+    Allocator,
     OutputBuffer,
     OutputFlags,
 };
 use arrayvec::ArrayVec;
-use bstr::{
-    BStr,
-    BString,
-};
+use bstr::BStr;
 use std::{
     io::Write as _,
+    mem::ManuallyDrop,
     ops::{
         Deref,
         DerefMut,
@@ -135,7 +137,7 @@ pub(crate) struct FunctionSignatureNode {
     pub(crate) is_variadic: bool,
 
     // Function parameters
-    pub(crate) params: Option<NodeHandle<NodeArrayNode>>,
+    pub(crate) params: Option<NodeHandle<NodeArray>>,
 
     // True if the function type is noexcept.
     pub(crate) is_noexcept: bool,
@@ -346,7 +348,7 @@ pub(crate) struct PointerTypeNode {
     pub(crate) affinity: Option<PointerAffinity>,
 
     // If this is a member pointer, this is the class that the member is in.
-    pub(crate) class_parent: Option<NodeHandle<QualifiedNameNode>>,
+    pub(crate) class_parent: Option<NodeHandle<QualifiedName>>,
 
     // Represents a type X in "a pointer to X", "a reference to X", or
     // "rvalue-reference to X"
@@ -427,7 +429,7 @@ impl WriteableTypeNode for PointerTypeNode {
 #[derive(Clone, Copy)]
 pub(crate) struct TagTypeNode {
     pub(crate) quals: Qualifiers,
-    pub(crate) qualified_name: NodeHandle<QualifiedNameNode>,
+    pub(crate) qualified_name: NodeHandle<QualifiedName>,
     pub(crate) tag: TagKind,
 }
 
@@ -471,7 +473,7 @@ pub(crate) struct ArrayTypeNode {
     pub(crate) quals: Qualifiers,
 
     // A list of array dimensions.  e.g. [3,4,5] in `int Foo[3][4][5]`
-    pub(crate) dimensions: NodeHandle<NodeArrayNode>,
+    pub(crate) dimensions: NodeHandle<NodeArray>,
 
     // The type of array element.
     pub(crate) element_type: NodeHandle<ITypeNode>,
@@ -577,7 +579,7 @@ impl WriteableTypeNode for CustomTypeNode {
 }
 
 #[derive(Clone, Copy, Default)]
-pub(crate) struct TemplateParameters(pub(crate) Option<NodeHandle<NodeArrayNode>>);
+pub(crate) struct TemplateParameters(pub(crate) Option<NodeHandle<NodeArray>>);
 
 impl TemplateParameters {
     fn output(self, cache: &NodeCache, ob: &mut OutputBuffer, flags: OutputFlags) -> Result<()> {
@@ -591,7 +593,7 @@ impl TemplateParameters {
 }
 
 impl Deref for TemplateParameters {
-    type Target = Option<NodeHandle<NodeArrayNode>>;
+    type Target = Option<NodeHandle<NodeArray>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -618,18 +620,18 @@ impl WriteableNode for VcallThunkIdentifierNode {
 
 #[derive(Clone, Copy)]
 pub(crate) enum DynamicStructorIdentifier {
-    Variable(NodeHandle<VariableSymbolNode>),
-    Name(NodeHandle<QualifiedNameNode>),
+    Variable(NodeHandle<VariableSymbol>),
+    Name(NodeHandle<QualifiedName>),
 }
 
-impl From<NodeHandle<VariableSymbolNode>> for DynamicStructorIdentifier {
-    fn from(value: NodeHandle<VariableSymbolNode>) -> Self {
+impl From<NodeHandle<VariableSymbol>> for DynamicStructorIdentifier {
+    fn from(value: NodeHandle<VariableSymbol>) -> Self {
         Self::Variable(value)
     }
 }
 
-impl From<NodeHandle<QualifiedNameNode>> for DynamicStructorIdentifier {
-    fn from(value: NodeHandle<QualifiedNameNode>) -> Self {
+impl From<NodeHandle<QualifiedName>> for DynamicStructorIdentifier {
+    fn from(value: NodeHandle<QualifiedName>) -> Self {
         Self::Name(value)
     }
 }
@@ -667,22 +669,12 @@ impl WriteableNode for DynamicStructorIdentifierNode {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct NamedIdentifierNode {
+pub(crate) struct NamedIdentifierNode<'alloc> {
     pub(crate) template_params: TemplateParameters,
-    pub(crate) name: BString,
+    pub(crate) name: &'alloc BStr,
 }
 
-impl NamedIdentifierNode {
-    #[must_use]
-    pub fn synthesize(name: &BStr) -> Self {
-        Self {
-            name: name.to_owned(),
-            ..Default::default()
-        }
-    }
-}
-
-impl WriteableNode for NamedIdentifierNode {
+impl<'alloc> WriteableNode for NamedIdentifierNode<'alloc> {
     fn output(&self, cache: &NodeCache, ob: &mut OutputBuffer, flags: OutputFlags) -> Result<()> {
         write!(ob, "{}", self.name)?;
         self.template_params.output(cache, ob, flags)
@@ -787,12 +779,12 @@ impl WriteableNode for IntrinsicFunctionIdentifierNode {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct LiteralOperatorIdentifierNode {
+pub(crate) struct LiteralOperatorIdentifierNode<'alloc> {
     pub(crate) template_params: TemplateParameters,
-    pub(crate) name: BString,
+    pub(crate) name: &'alloc BStr,
 }
 
-impl WriteableNode for LiteralOperatorIdentifierNode {
+impl<'alloc> WriteableNode for LiteralOperatorIdentifierNode<'alloc> {
     fn output(&self, cache: &NodeCache, ob: &mut OutputBuffer, flags: OutputFlags) -> Result<()> {
         write!(ob, "operator \"\"{}", self.name)?;
         self.template_params.output(cache, ob, flags)
@@ -881,11 +873,11 @@ impl WriteableNode for RttiBaseClassDescriptorNode {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct NodeArrayNode {
-    pub(crate) nodes: Vec<NodeHandle<INode>>,
+pub(crate) struct NodeArrayNode<'alloc> {
+    pub(crate) nodes: &'alloc [NodeHandle<INode>],
 }
 
-impl NodeArrayNode {
+impl<'alloc> NodeArrayNode<'alloc> {
     pub(crate) fn do_output(
         &self,
         cache: &NodeCache,
@@ -904,7 +896,7 @@ impl NodeArrayNode {
     }
 }
 
-impl WriteableNode for NodeArrayNode {
+impl<'alloc> WriteableNode for NodeArrayNode<'alloc> {
     fn output(&self, cache: &NodeCache, ob: &mut OutputBuffer, flags: OutputFlags) -> Result<()> {
         self.do_output(cache, ob, flags, ", ")
     }
@@ -912,14 +904,14 @@ impl WriteableNode for NodeArrayNode {
 
 #[derive(Clone, Copy)]
 pub(crate) struct QualifiedNameNode {
-    pub(crate) components: NodeHandle<NodeArrayNode>,
+    pub(crate) components: NodeHandle<NodeArray>,
 }
 
 impl QualifiedNameNode {
     #[must_use]
     pub(crate) fn get_unqualified_identifier(
         self,
-        cache: &NodeCache,
+        cache: &NodeCache<'_>,
     ) -> Option<NodeHandle<IIdentifierNode>> {
         let components = self.components.resolve(cache);
         if let Some(&node) = components.nodes.last() {
@@ -930,20 +922,34 @@ impl QualifiedNameNode {
     }
 
     #[must_use]
-    pub(crate) fn synthesize_from_id(
-        cache: &mut NodeCache,
+    pub(crate) fn synthesize_from_id<'alloc>(
+        allocator: &'alloc Allocator,
+        cache: &mut NodeCache<'alloc>,
         identifier: NodeHandle<IIdentifierNode>,
     ) -> Self {
-        let components = cache.intern(NodeArrayNode {
-            nodes: vec![identifier.into()],
-        });
+        let components = cache.intern(
+            allocator,
+            NodeArrayNode {
+                nodes: allocator.allocate_slice(&[identifier.into()]),
+            },
+        );
         Self { components }
     }
 
     #[must_use]
-    pub(crate) fn synthesize_from_name(cache: &mut NodeCache, name: &BStr) -> Self {
-        let id = cache.intern(NamedIdentifierNode::synthesize(name));
-        Self::synthesize_from_id(cache, id.into())
+    pub(crate) fn synthesize_from_name<'alloc, 'string: 'alloc>(
+        allocator: &'alloc Allocator,
+        cache: &mut NodeCache<'alloc>,
+        name: &'string BStr,
+    ) -> Self {
+        let id = cache.intern(
+            allocator,
+            NamedIdentifierNode {
+                name,
+                ..Default::default()
+            },
+        );
+        Self::synthesize_from_id(allocator, cache, id.into())
     }
 }
 
@@ -958,7 +964,7 @@ impl WriteableNode for QualifiedNameNode {
 #[derive(Clone, Default)]
 pub(crate) struct TemplateParameterReferenceNode {
     pub(crate) symbol: Option<NodeHandle<ISymbolNode>>,
-    pub(crate) thunk_offsets: ArrayVec<i64, 3>,
+    pub(crate) thunk_offsets: ManuallyDrop<ArrayVec<i64, 3>>, // it's safe to ignore dropping here: i64 is trivial
     pub(crate) affinity: Option<PointerAffinity>,
     #[allow(unused)]
     pub(crate) is_member_pointer: bool,
@@ -1006,7 +1012,7 @@ impl WriteableNode for IntegerLiteralNode {
 
 #[derive(Clone, Copy)]
 pub(crate) struct Md5SymbolNode {
-    pub(crate) name: NodeHandle<QualifiedNameNode>,
+    pub(crate) name: NodeHandle<QualifiedName>,
 }
 
 impl WriteableNode for Md5SymbolNode {
@@ -1017,8 +1023,8 @@ impl WriteableNode for Md5SymbolNode {
 
 #[derive(Clone, Copy)]
 pub(crate) struct SpecialTableSymbolNode {
-    pub(crate) name: NodeHandle<QualifiedNameNode>,
-    pub(crate) target_name: Option<NodeHandle<QualifiedNameNode>>,
+    pub(crate) name: NodeHandle<QualifiedName>,
+    pub(crate) target_name: Option<NodeHandle<QualifiedName>>,
     pub(crate) quals: Qualifiers,
 }
 
@@ -1037,7 +1043,7 @@ impl WriteableNode for SpecialTableSymbolNode {
 
 #[derive(Clone, Copy)]
 pub(crate) struct LocalStaticGuardVariableNode {
-    pub(crate) name: NodeHandle<QualifiedNameNode>,
+    pub(crate) name: NodeHandle<QualifiedName>,
     #[allow(unused)]
     pub(crate) is_visible: bool,
 }
@@ -1049,14 +1055,14 @@ impl WriteableNode for LocalStaticGuardVariableNode {
 }
 
 #[derive(Clone)]
-pub(crate) struct EncodedStringLiteralNode {
-    pub(crate) name: Option<NodeHandle<QualifiedNameNode>>,
-    pub(crate) decoded_string: BString,
+pub(crate) struct EncodedStringLiteralNode<'alloc> {
+    pub(crate) name: Option<NodeHandle<QualifiedName>>,
+    pub(crate) decoded_string: &'alloc BStr,
     pub(crate) is_truncated: bool,
     pub(crate) char: CharKind,
 }
 
-impl WriteableNode for EncodedStringLiteralNode {
+impl<'alloc> WriteableNode for EncodedStringLiteralNode<'alloc> {
     fn output(&self, _: &NodeCache, ob: &mut OutputBuffer, _: OutputFlags) -> Result<()> {
         let prefix = match self.char {
             CharKind::Wchar => "L\"",
@@ -1071,21 +1077,22 @@ impl WriteableNode for EncodedStringLiteralNode {
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct VariableSymbolNode {
-    pub(crate) name: Option<NodeHandle<QualifiedNameNode>>,
+    pub(crate) name: Option<NodeHandle<QualifiedName>>,
     pub(crate) sc: Option<StorageClass>,
     pub(crate) r#type: Option<NodeHandle<ITypeNode>>,
 }
 
 impl VariableSymbolNode {
     #[must_use]
-    pub(crate) fn synthesize(
-        cache: &mut NodeCache,
+    pub(crate) fn synthesize<'alloc, 'string: 'alloc>(
+        allocator: &'alloc Allocator,
+        cache: &mut NodeCache<'alloc>,
         r#type: NodeHandle<ITypeNode>,
-        variable_name: &BStr,
+        variable_name: &'string BStr,
     ) -> Self {
         let name = {
-            let x = QualifiedNameNode::synthesize_from_name(cache, variable_name);
-            cache.intern(x)
+            let x = QualifiedNameNode::synthesize_from_name(allocator, cache, variable_name);
+            cache.intern(allocator, x)
         };
 
         Self {
@@ -1135,7 +1142,7 @@ impl WriteableNode for VariableSymbolNode {
 
 #[derive(Clone, Copy)]
 pub(crate) struct FunctionSymbolNode {
-    pub(crate) name: Option<NodeHandle<QualifiedNameNode>>,
+    pub(crate) name: Option<NodeHandle<QualifiedName>>,
     pub(crate) signature: NodeHandle<ISignatureNode>,
 }
 

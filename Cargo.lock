@@ -489,6 +489,7 @@ dependencies = [
  "arrayvec",
  "bitflags",
  "bstr",
+ "bumpalo",
  "criterion",
  "memchr",
  "msvc-demangler",

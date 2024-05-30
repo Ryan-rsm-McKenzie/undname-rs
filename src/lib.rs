@@ -35,10 +35,34 @@ pub use bstr::{
     ByteSlice,
     ByteVec,
 };
-use std::io;
+use bumpalo::Bump;
+use std::{
+    io,
+    mem,
+};
 
 type OutputFlags = Flags;
 type OutputBuffer = Vec<u8>;
+
+#[derive(Default)]
+struct Allocator {
+    alloc: Bump,
+}
+
+impl Allocator {
+    pub(crate) fn allocate<T>(&self, val: T) -> &mut T {
+        debug_assert!(!mem::needs_drop::<T>());
+        self.alloc.alloc(val)
+    }
+
+    pub(crate) fn allocate_slice<'this, T>(&'this self, src: &[T]) -> &'this [T]
+    where
+        T: Copy,
+    {
+        debug_assert!(!mem::needs_drop::<T>());
+        self.alloc.alloc_slice_copy(src)
+    }
+}
 
 #[non_exhaustive]
 #[derive(thiserror::Error, Debug)]
@@ -227,5 +251,6 @@ impl Flags {
 
 pub fn demangle(mangled_name: &BStr, flags: Flags) -> Result<BString> {
     let mut d = Demangler::default();
-    d.parse(mangled_name, flags)
+    let alloc = Allocator::default();
+    d.parse(&alloc, mangled_name, flags)
 }

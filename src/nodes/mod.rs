@@ -108,49 +108,15 @@ pub(crate) use intermediate::{
     SymbolNode,
     TypeNode,
 };
-use std::io::{
-    self,
-    Write as _,
+use std::{
+    io::{
+        self,
+        Write as _,
+    },
+    mem,
 };
 
 type Result<T> = std::result::Result<T, io::Error>;
-
-pub trait DerivedNode {}
-
-macro_rules! is_derived_node {
-    ($t:ty) => {
-        impl DerivedNode for $t {}
-    };
-}
-
-is_derived_node!(PrimitiveTypeNode);
-is_derived_node!(FunctionSignatureNode);
-is_derived_node!(ThunkSignatureNode);
-is_derived_node!(PointerTypeNode);
-is_derived_node!(TagTypeNode);
-is_derived_node!(ArrayTypeNode);
-is_derived_node!(CustomTypeNode);
-
-is_derived_node!(VcallThunkIdentifierNode);
-is_derived_node!(DynamicStructorIdentifierNode);
-is_derived_node!(NamedIdentifierNode);
-is_derived_node!(IntrinsicFunctionIdentifierNode);
-is_derived_node!(LiteralOperatorIdentifierNode);
-is_derived_node!(LocalStaticGuardIdentifierNode);
-is_derived_node!(ConversionOperatorIdentifierNode);
-is_derived_node!(StructorIdentifierNode);
-is_derived_node!(RttiBaseClassDescriptorNode);
-
-is_derived_node!(NodeArrayNode);
-is_derived_node!(QualifiedNameNode);
-is_derived_node!(TemplateParameterReferenceNode);
-is_derived_node!(IntegerLiteralNode);
-
-is_derived_node!(SpecialTableSymbolNode);
-is_derived_node!(LocalStaticGuardVariableNode);
-is_derived_node!(EncodedStringLiteralNode);
-is_derived_node!(VariableSymbolNode);
-is_derived_node!(FunctionSymbolNode);
 
 fn output_space_if_necessary(ob: &mut Vec<u8>) -> Result<()> {
     if let Some(c) = ob.last() {
@@ -191,3 +157,38 @@ trait WriteableTypeNode {
         flags: OutputFlags,
     ) -> Result<()>;
 }
+
+macro_rules! assert_trivial_drop {
+    ($t:ty) => {
+        const _: () = assert!(!mem::needs_drop::<$t>());
+    };
+}
+
+assert_trivial_drop!(PrimitiveTypeNode);
+assert_trivial_drop!(FunctionSignatureNode);
+assert_trivial_drop!(ThunkSignatureNode);
+assert_trivial_drop!(PointerTypeNode);
+assert_trivial_drop!(TagTypeNode);
+assert_trivial_drop!(ArrayTypeNode);
+assert_trivial_drop!(CustomTypeNode);
+
+assert_trivial_drop!(VcallThunkIdentifierNode);
+assert_trivial_drop!(DynamicStructorIdentifierNode);
+assert_trivial_drop!(NamedIdentifierNode);
+assert_trivial_drop!(IntrinsicFunctionIdentifierNode);
+assert_trivial_drop!(LiteralOperatorIdentifierNode);
+assert_trivial_drop!(LocalStaticGuardIdentifierNode);
+assert_trivial_drop!(ConversionOperatorIdentifierNode);
+assert_trivial_drop!(StructorIdentifierNode);
+assert_trivial_drop!(RttiBaseClassDescriptorNode);
+
+assert_trivial_drop!(NodeArrayNode);
+assert_trivial_drop!(QualifiedNameNode);
+assert_trivial_drop!(TemplateParameterReferenceNode);
+assert_trivial_drop!(IntegerLiteralNode);
+
+assert_trivial_drop!(SpecialTableSymbolNode);
+assert_trivial_drop!(LocalStaticGuardVariableNode);
+assert_trivial_drop!(EncodedStringLiteralNode);
+assert_trivial_drop!(VariableSymbolNode);
+assert_trivial_drop!(FunctionSymbolNode);
