@@ -1237,8 +1237,8 @@ const INPUTS: [&str; 1168] = [
     "?f5@@YCXXZ",
 ];
 
-fn bench_fibs(c: &mut Criterion) {
-    let mut group = c.benchmark_group("Demangling");
+fn bench_many(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Many");
 
     group.bench_with_input("undname", &INPUTS, |b, inputs| {
         b.iter(|| {
@@ -1280,5 +1280,39 @@ fn bench_fibs(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_fibs);
+fn bench_single(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Single");
+    let input = "??_0klass@@QEAAHH@Z";
+
+    group.bench_with_input("undname", input, |b, i| {
+        b.iter(|| {
+            let output = undname::demangle(i.into(), Flags::empty()).unwrap();
+            hint::black_box(&output);
+        });
+    });
+
+    group.bench_with_input("msvc_demangler", input, |b, i| {
+        b.iter(|| {
+            let output = msvc_demangler::demangle(i, DemangleFlags::empty()).unwrap();
+            hint::black_box(&output);
+        });
+    });
+
+    #[cfg(windows)]
+    {
+        let input: HSTRING = input.into();
+        let mut output = [0u16; 0x1000];
+        group.bench_with_input("windows", &input, |b, i| {
+            b.iter(|| {
+                let result = unsafe { UnDecorateSymbolNameW(i, &mut output, 0) };
+                assert!(result != 0);
+                hint::black_box(&output);
+            });
+        });
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_many, bench_single);
 criterion_main!(benches);
