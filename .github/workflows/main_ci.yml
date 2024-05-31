@@ -5,6 +5,7 @@ on:
     branches: ['main']
     paths:
       - '.github/workflows/main_ci.yml'
+      - 'examples/**/*.rs'
       - 'src/**/*.rs'
       - 'Cargo.lock'
       - 'Cargo.toml'
