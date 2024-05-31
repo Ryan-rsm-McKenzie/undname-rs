@@ -6,3 +6,11 @@ The latest development docs are available at:
 The stable release docs are available at:
 
 Changelogs are available at: https://github.com/Ryan-rsm-McKenzie/undname-rs/releases
+
+# Example
+
+```rust
+use undname::Flags;
+let result = undname::demangle(b"?world@@YA?AUhello@@XZ".into(), Flags::default()).unwrap();
+assert_eq!(result, b"struct hello __cdecl world(void)"[..]);
+```

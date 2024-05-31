@@ -345,13 +345,18 @@ impl Flags {
 }
 
 /// Demangles a Microsoft symbol stored in `mangled_name`.
+/// ```rust
+/// use undname::Flags;
+/// let result = undname::demangle(b"?world@@YA?AUhello@@XZ".into(), Flags::default()).unwrap();
+/// assert_eq!(result, b"struct hello __cdecl world(void)"[..]);
+/// ```
 pub fn demangle(mangled_name: &BStr, flags: Flags) -> Result<BString> {
     let mut result = BString::default();
     demangle_into(mangled_name, flags, &mut result)?;
     Ok(result)
 }
 
-/// Demangles a Microsoft symbol stored in `mangled_name` into `result`.
+/// See [`demangle`] for more info.
 pub fn demangle_into(mangled_name: &BStr, flags: Flags, result: &mut BString) -> Result<()> {
     let mut d = Demangler::default();
     let alloc = Allocator::default();
