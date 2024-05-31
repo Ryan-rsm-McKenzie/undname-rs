@@ -1907,7 +1907,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                 if string_byte_len != 2 || is_truncated {
                     Self::output_escaped_char(&mut ob, w.into())?;
                 }
-                string_byte_len -= 2;
+                string_byte_len = string_byte_len.saturating_sub(2);
             }
 
             (char, is_truncated)
