@@ -25,9 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Miri
+      - name: Dependencies
         run: |
-          rustup toolchain install nightly --component miri
+          rustup toolchain install nightly --component miri --component clippy
           rustup override set nightly
           cargo miri setup
 
