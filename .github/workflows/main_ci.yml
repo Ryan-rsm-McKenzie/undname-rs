@@ -25,11 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Dependencies
+      - name: Nightly
         run: |
-          rustup toolchain install nightly --component miri --component clippy
+          rustup toolchain install nightly --component clippy
           rustup override set nightly
-          cargo miri setup
 
       - name: Clippy
         run: cargo clippy -- -Dwarnings
@@ -37,5 +36,13 @@ jobs:
       - name: Build
         run: cargo build
 
+      - name: Miri Test
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          rustup component add miri
+          cargo miri setup
+          cargo miri test
+
       - name: Test
-        run: cargo miri test
+        if: ${{ matrix.os != 'ubuntu-latest' }}
+        run: cargo test
