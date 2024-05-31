@@ -327,8 +327,16 @@ impl Flags {
     }
 }
 
+/// Demangles a Microsoft symbol stored in `mangled_name`.
 pub fn demangle(mangled_name: &BStr, flags: Flags) -> Result<BString> {
+    let mut result = BString::default();
+    demangle_into(mangled_name, flags, &mut result)?;
+    Ok(result)
+}
+
+/// Demangles a Microsoft symbol stored in `mangled_name` into `result`.
+pub fn demangle_into(mangled_name: &BStr, flags: Flags, result: &mut BString) -> Result<()> {
     let mut d = Demangler::default();
     let alloc = Allocator::default();
-    d.parse(&alloc, mangled_name, flags)
+    d.parse_into(&alloc, mangled_name, flags, result)
 }

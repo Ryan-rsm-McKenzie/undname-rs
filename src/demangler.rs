@@ -159,18 +159,20 @@ pub(crate) struct Demangler<'alloc> {
 }
 
 impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
-    pub(crate) fn parse(
+    pub(crate) fn parse_into(
         &mut self,
         allocator: &'alloc Allocator,
         mut mangled_name: &'string BStr,
         flags: OutputFlags,
-    ) -> Result<BString> {
+        result: &mut BString,
+    ) -> Result<()> {
         let ast = self
             .do_parse(allocator, &mut mangled_name)?
             .resolve(&self.cache);
-        let mut ob = OutputBuffer::new();
+        let mut ob: OutputBuffer = mem::take(result).into();
         ast.output(&self.cache, &mut ob, flags)?;
-        Ok(ob.into())
+        *result = ob.into();
+        Ok(())
     }
 
     fn do_parse(
