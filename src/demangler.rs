@@ -152,60 +152,58 @@ enum FunctionIdentifierCodeGroup {
     DoubleUnder,
 }
 
-#[derive(Default)]
 pub(crate) struct Demangler<'alloc> {
+    allocator: &'alloc Allocator,
     cache: NodeCache<'alloc>,
     backrefs: BackrefContext,
 }
 
 impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
+    pub(crate) fn new(allocator: &'alloc Allocator) -> Self {
+        Self {
+            allocator,
+            cache: NodeCache::default(),
+            backrefs: BackrefContext::default(),
+        }
+    }
+
     pub(crate) fn parse_into(
-        &mut self,
-        allocator: &'alloc Allocator,
+        mut self,
         mut mangled_name: &'string BStr,
         flags: OutputFlags,
         result: &mut BString,
     ) -> Result<()> {
-        let ast = self
-            .do_parse(allocator, &mut mangled_name)?
-            .resolve(&self.cache);
+        let ast = self.do_parse(&mut mangled_name)?.resolve(&self.cache);
         let mut ob: Vec<u8> = mem::take(result).into();
         ast.output(&self.cache, &mut ob, flags)?;
         *result = ob.into();
         Ok(())
     }
 
-    fn do_parse(
-        &mut self,
-        allocator: &'alloc Allocator,
-        mangled_name: &mut &'string BStr,
-    ) -> Result<NodeHandle<ISymbolNode>> {
+    fn do_parse(&mut self, mangled_name: &mut &'string BStr) -> Result<NodeHandle<ISymbolNode>> {
         // Typeinfo names are strings stored in RTTI data. They're not symbol names.
         // It's still useful to demangle them. They're the only demangled entity
         // that doesn't start with a "?" but a ".".
         if mangled_name.starts_with(b".") {
-            self.demangle_typeinfo_name(allocator, mangled_name)
-                .map(Into::into)
+            self.demangle_typeinfo_name(mangled_name).map(Into::into)
         } else if mangled_name.starts_with(b"??@") {
-            self.demangle_md5_name(allocator, mangled_name)
-                .map(Into::into)
+            self.demangle_md5_name(mangled_name).map(Into::into)
         } else {
             mangled_name
                 .try_consume_byte(b'?')
                 .ok_or(Error::Io(io::ErrorKind::UnexpectedEof.into()))?;
             // ?$ is a template instantiation, but all other names that start with ? are
             // operators / special names.
-            if let Some(si) = self.demangle_special_intrinsic(allocator, mangled_name)? {
+            if let Some(si) = self.demangle_special_intrinsic(mangled_name)? {
                 Ok(si)
             } else {
-                self.demangle_declarator(allocator, mangled_name)
+                self.demangle_declarator(mangled_name)
             }
         }
     }
 
     fn demangle_encoded_symbol(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         name: NodeHandle<QualifiedName>,
     ) -> Result<NodeHandle<ISymbolNode>> {
@@ -214,10 +212,10 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         // Read a variable.
         if matches!(c, b'0' | b'1' | b'2' | b'3' | b'4') {
             let sc = Self::demangle_variable_storage_class(mangled_name)?;
-            let result = self.demangle_variable_encoding(allocator, mangled_name, sc)?;
+            let result = self.demangle_variable_encoding(mangled_name, sc)?;
             return Ok(result.into());
         }
-        let fsn = self.demangle_function_encoding(allocator, mangled_name)?;
+        let fsn = self.demangle_function_encoding(mangled_name)?;
         let target_type = fsn
             .resolve(&self.cache)
             .signature
@@ -239,13 +237,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_declarator(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<ISymbolNode>> {
         // What follows is a main symbol name. This may include namespaces or class
         // back references.
-        let qn = self.demangle_fully_qualified_symbol_name(allocator, mangled_name)?;
-        let symbol = self.demangle_encoded_symbol(allocator, mangled_name, qn)?;
+        let qn = self.demangle_fully_qualified_symbol_name(mangled_name)?;
+        let symbol = self.demangle_encoded_symbol(mangled_name, qn)?;
         symbol.resolve_mut(&mut self.cache).set_name(qn);
 
         let uqn = qn
@@ -264,7 +261,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_md5_name(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<Md5Symbol>> {
         let mangled_copy = *mangled_name;
@@ -297,34 +293,33 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         }
 
         let md5 = &mangled_copy[..=stop];
-        let name = QualifiedNameNode::synthesize_from_name(allocator, &mut self.cache, md5);
+        let name = QualifiedNameNode::synthesize_from_name(self.allocator, &mut self.cache, md5);
         let s = Md5SymbolNode {
-            name: self.cache.intern(allocator, name),
+            name: self.cache.intern(self.allocator, name),
         };
 
-        Ok(self.cache.intern(allocator, s))
+        Ok(self.cache.intern(self.allocator, s))
     }
 
     fn demangle_typeinfo_name(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<VariableSymbol>> {
         mangled_name
             .try_consume_byte(b'.')
             .ok_or(Error::InvalidTypeinfoName)?;
-        let t = self.demangle_type(allocator, mangled_name, QualifierMangleMode::Result)?;
+        let t = self.demangle_type(mangled_name, QualifierMangleMode::Result)?;
         if !mangled_name.is_empty() {
             return Err(Error::InvalidTypeinfoName);
         }
 
         let variable = VariableSymbolNode::synthesize(
-            allocator,
+            self.allocator,
             &mut self.cache,
             t,
             b"`RTTI Type Descriptor Name'".into(),
         );
-        Ok(self.cache.intern(allocator, variable))
+        Ok(self.cache.intern(self.allocator, variable))
     }
 
     // <type-encoding> ::= <storage-class> <variable-type>
@@ -335,11 +330,10 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
     //                 ::= 4  # static local
     fn demangle_variable_encoding(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         sc: StorageClass,
     ) -> Result<NodeHandle<VariableSymbol>> {
-        let r#type = self.demangle_type(allocator, mangled_name, QualifierMangleMode::Drop)?;
+        let r#type = self.demangle_type(mangled_name, QualifierMangleMode::Drop)?;
 
         // <variable-type> ::= <type> <cvr-qualifiers>
         //                 ::= <type> <pointee-cvr-qualifiers> # pointers, references
@@ -351,7 +345,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
                 let extra_child_quals = Self::demangle_qualifiers(mangled_name)?.0;
                 if class_parent.is_some() {
-                    _ = self.demangle_fully_qualified_type_name(allocator, mangled_name)?;
+                    _ = self.demangle_fully_qualified_type_name(mangled_name)?;
                 }
 
                 let mut pointee = pointee.resolve_mut(&mut self.cache);
@@ -368,12 +362,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             sc: Some(sc),
             r#type: Some(r#type),
         };
-        Ok(self.cache.intern(allocator, vsn))
+        Ok(self.cache.intern(self.allocator, vsn))
     }
 
     fn demangle_function_encoding(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<FunctionSymbol>> {
         let mut extra_flags = FuncClass::FC_None;
@@ -411,15 +404,15 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             // This happens when we need to mangle a local symbol inside of an extern
             // "C" function.
             self.cache
-                .intern(allocator, FunctionSignatureNode::default())
+                .intern(self.allocator, FunctionSignatureNode::default())
         } else {
             let has_this_quals = !fc.intersects(FuncClass::FC_Global | FuncClass::FC_Static);
-            self.demangle_function_type(allocator, mangled_name, has_this_quals)?
+            self.demangle_function_type(mangled_name, has_this_quals)?
         };
 
         let signature: NodeHandle<ISignatureNode> = if let Some(mut ttn) = ttn {
             ttn.function_node = *fsn.resolve(&self.cache);
-            self.cache.intern(allocator, ttn).into()
+            self.cache.intern(self.allocator, ttn).into()
         } else {
             fsn.into()
         };
@@ -428,7 +421,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             .set_function_class(fc);
 
         Ok(self.cache.intern(
-            allocator,
+            self.allocator,
             FunctionSymbolNode {
                 name: None,
                 signature,
@@ -455,7 +448,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
     //                 ::= <type> <pointee-cvr-qualifiers> # pointers, references
     fn demangle_type(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         qmm: QualifierMangleMode,
     ) -> Result<NodeHandle<ITypeNode>> {
@@ -476,37 +468,31 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         }
 
         let ty: NodeHandle<ITypeNode> = if mangled_name.is_tag_type() {
-            self.demangle_class_type(allocator, mangled_name)
-                .map(Into::into)
+            self.demangle_class_type(mangled_name).map(Into::into)
         } else if mangled_name.is_pointer_type() {
             match mangled_name.is_member_pointer() {
                 Some(true) => self
-                    .demangle_member_pointer_type(allocator, mangled_name)
+                    .demangle_member_pointer_type(mangled_name)
                     .map(Into::into),
-                Some(false) => self
-                    .demangle_pointer_type(allocator, mangled_name)
-                    .map(Into::into),
+                Some(false) => self.demangle_pointer_type(mangled_name).map(Into::into),
                 None => Err(Error::InvalidType),
             }
         } else if mangled_name.is_array_type() {
-            self.demangle_array_type(allocator, mangled_name)
-                .map(Into::into)
+            self.demangle_array_type(mangled_name).map(Into::into)
         } else if mangled_name.is_function_type() {
             if mangled_name.try_consume_str(b"$$A8@@").is_some() {
-                self.demangle_function_type(allocator, mangled_name, true)
+                self.demangle_function_type(mangled_name, true)
                     .map(Into::into)
             } else if mangled_name.try_consume_str(b"$$A6").is_some() {
-                self.demangle_function_type(allocator, mangled_name, false)
+                self.demangle_function_type(mangled_name, false)
                     .map(Into::into)
             } else {
                 Err(Error::InvalidType)
             }
         } else if mangled_name.is_custom_type() {
-            self.demangle_custom_type(allocator, mangled_name)
-                .map(Into::into)
+            self.demangle_custom_type(mangled_name).map(Into::into)
         } else {
-            self.demangle_primitive_type(allocator, mangled_name)
-                .map(Into::into)
+            self.demangle_primitive_type(mangled_name).map(Into::into)
         }?;
 
         ty.resolve_mut(&mut self.cache).append_quals(quals);
@@ -515,7 +501,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_primitive_type(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<PrimitiveType>> {
         let kind = if mangled_name.try_consume_str(b"$$T").is_some() {
@@ -556,12 +541,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                 _ => return Err(Error::InvalidPrimitiveType),
             }
         };
-        Ok(self.cache.intern(allocator, PrimitiveTypeNode::new(kind)))
+        Ok(self
+            .cache
+            .intern(self.allocator, PrimitiveTypeNode::new(kind)))
     }
 
     fn demangle_custom_type(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<CustomType>> {
         mangled_name
@@ -570,11 +556,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
         let ctn = CustomTypeNode {
             quals: Qualifiers::Q_None,
-            identifier: self.demangle_unqualified_type_name(allocator, mangled_name, true)?,
+            identifier: self.demangle_unqualified_type_name(mangled_name, true)?,
         };
 
         if mangled_name.try_consume_byte(b'@').is_some() {
-            Ok(self.cache.intern(allocator, ctn))
+            Ok(self.cache.intern(self.allocator, ctn))
         } else {
             Err(Error::InvalidCustomType)
         }
@@ -582,7 +568,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_class_type(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<TagType>> {
         let f = mangled_name.try_consume().ok_or(Error::InvalidClassType)?;
@@ -602,28 +587,26 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
         let tt = TagTypeNode {
             quals: Qualifiers::Q_None,
-            qualified_name: self.demangle_fully_qualified_type_name(allocator, mangled_name)?,
+            qualified_name: self.demangle_fully_qualified_type_name(mangled_name)?,
             tag,
         };
 
-        Ok(self.cache.intern(allocator, tt))
+        Ok(self.cache.intern(self.allocator, tt))
     }
 
     // <pointer-type> ::= E? <pointer-cvr-qualifiers> <ext-qualifiers> <type>
     //                       # the E is required for 64-bit non-static pointers
     fn demangle_pointer_type(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<PointerType>> {
         let (mut quals, affinity) = Self::demangle_pointer_cv_qualifiers(mangled_name)?;
         let pointee = if mangled_name.try_consume_byte(b'6').is_some() {
-            self.demangle_function_type(allocator, mangled_name, false)?
-                .into()
+            self.demangle_function_type(mangled_name, false)?.into()
         } else {
             let ext_quals = Self::demangle_pointer_ext_qualifiers(mangled_name);
             quals |= ext_quals;
-            self.demangle_type(allocator, mangled_name, QualifierMangleMode::Mangle)?
+            self.demangle_type(mangled_name, QualifierMangleMode::Mangle)?
         };
 
         let pointer = PointerTypeNode {
@@ -633,12 +616,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             pointee,
         };
 
-        Ok(self.cache.intern(allocator, pointer))
+        Ok(self.cache.intern(self.allocator, pointer))
     }
 
     fn demangle_member_pointer_type(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<PointerType>> {
         let (mut quals, affinity) = Self::demangle_pointer_cv_qualifiers(mangled_name)?;
@@ -652,16 +634,16 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         // is_member_pointer() only returns true if there is at least one character
         // after the qualifiers.
         let (class_parent, pointee) = if mangled_name.try_consume_byte(b'8').is_some() {
-            let class_parent = self.demangle_fully_qualified_type_name(allocator, mangled_name)?;
-            let pointee = self.demangle_function_type(allocator, mangled_name, true)?;
+            let class_parent = self.demangle_fully_qualified_type_name(mangled_name)?;
+            let pointee = self.demangle_function_type(mangled_name, true)?;
             (Some(class_parent), pointee.into())
         } else {
             let (pointee_quals, is_member) = Self::demangle_qualifiers(mangled_name)?;
             if !is_member {
                 return Err(Error::InvalidMemberPointerType);
             }
-            let class_parent = self.demangle_fully_qualified_type_name(allocator, mangled_name)?;
-            let pointee = self.demangle_type(allocator, mangled_name, QualifierMangleMode::Drop)?;
+            let class_parent = self.demangle_fully_qualified_type_name(mangled_name)?;
+            let pointee = self.demangle_type(mangled_name, QualifierMangleMode::Drop)?;
             pointee
                 .resolve_mut(&mut self.cache)
                 .set_quals(pointee_quals);
@@ -675,12 +657,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             pointee,
         };
 
-        Ok(self.cache.intern(allocator, pointer))
+        Ok(self.cache.intern(self.allocator, pointer))
     }
 
     fn demangle_function_type(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         has_this_quals: bool,
     ) -> Result<NodeHandle<FunctionSignature>> {
@@ -698,20 +679,17 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         //               ::= @ # structors (they have no declared return type)
         let is_structor = mangled_name.try_consume_byte(b'@').is_some();
         if !is_structor {
-            fty.return_type =
-                Some(self.demangle_type(allocator, mangled_name, QualifierMangleMode::Result)?);
+            fty.return_type = Some(self.demangle_type(mangled_name, QualifierMangleMode::Result)?);
         }
 
-        fty.params =
-            self.demangle_function_parameter_list(allocator, mangled_name, &mut fty.is_variadic)?;
+        fty.params = self.demangle_function_parameter_list(mangled_name, &mut fty.is_variadic)?;
         fty.is_noexcept = Self::demangle_throw_specification(mangled_name)?;
 
-        Ok(self.cache.intern(allocator, fty))
+        Ok(self.cache.intern(self.allocator, fty))
     }
 
     fn demangle_array_type(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<ArrayType>> {
         mangled_name
@@ -731,12 +709,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                     return Err(Error::InvalidArrayType);
                 }
                 let n = IntegerLiteralNode { value, is_negative };
-                nodes.push(self.cache.intern(allocator, n).into());
+                nodes.push(self.cache.intern(self.allocator, n).into());
             }
             self.cache.intern(
-                allocator,
+                self.allocator,
                 NodeArrayNode {
-                    nodes: allocator.allocate_slice(&nodes),
+                    nodes: self.allocator.allocate_slice(&nodes),
                 },
             )
         };
@@ -751,21 +729,19 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             Qualifiers::Q_None
         };
 
-        let element_type =
-            self.demangle_type(allocator, mangled_name, QualifierMangleMode::Drop)?;
+        let element_type = self.demangle_type(mangled_name, QualifierMangleMode::Drop)?;
         let aty = ArrayTypeNode {
             quals,
             dimensions,
             element_type,
         };
 
-        Ok(self.cache.intern(allocator, aty))
+        Ok(self.cache.intern(self.allocator, aty))
     }
 
     // Reads a function's parameters.
     fn demangle_function_parameter_list(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         is_variadic: &mut bool,
     ) -> Result<Option<NodeHandle<NodeArray>>> {
@@ -793,8 +769,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                     }
                 } else {
                     let old_len = mangled_name.len();
-                    let tn =
-                        self.demangle_type(allocator, mangled_name, QualifierMangleMode::Drop)?;
+                    let tn = self.demangle_type(mangled_name, QualifierMangleMode::Drop)?;
                     nodes.push(tn.into());
 
                     let chars_consumed = old_len - mangled_name.len();
@@ -808,9 +783,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                 }
             }
             Some(self.cache.intern(
-                allocator,
+                self.allocator,
                 NodeArrayNode {
-                    nodes: allocator.allocate_slice(&nodes),
+                    nodes: self.allocator.allocate_slice(&nodes),
                 },
             ))
         };
@@ -831,7 +806,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_template_parameter_list(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<NodeArray>> {
         // Template parameter lists don't participate in back-referencing.
@@ -853,19 +827,19 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             if mangled_name.try_consume_str(b"$$Y").is_some() {
                 // Template alias
                 nodes.push(
-                    self.demangle_fully_qualified_type_name(allocator, mangled_name)?
+                    self.demangle_fully_qualified_type_name(mangled_name)?
                         .into(),
                 );
             } else if mangled_name.try_consume_str(b"$$B").is_some() {
                 // Array
                 nodes.push(
-                    self.demangle_type(allocator, mangled_name, QualifierMangleMode::Drop)?
+                    self.demangle_type(mangled_name, QualifierMangleMode::Drop)?
                         .into(),
                 );
             } else if mangled_name.try_consume_str(b"$$C").is_some() {
                 // Type has qualifiers.
                 nodes.push(
-                    self.demangle_type(allocator, mangled_name, QualifierMangleMode::Mangle)?
+                    self.demangle_type(mangled_name, QualifierMangleMode::Mangle)?
                         .into(),
                 );
             } else if let Some(string) = mangled_name
@@ -877,7 +851,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                 // Pointer to member
                 let mut tprn = TemplateParameterReferenceNode {
                     symbol: if mangled_name.starts_with(b"?") {
-                        let symbol = self.do_parse(allocator, mangled_name)?;
+                        let symbol = self.do_parse(mangled_name)?;
                         let identifier = symbol
                             .resolve(&self.cache)
                             .get_name()
@@ -886,7 +860,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                                     .get_unqualified_identifier(&self.cache)
                             })
                             .ok_or(Error::InvalidTemplateParameterList)?;
-                        self.memorize_identifier(allocator, identifier)?;
+                        self.memorize_identifier(identifier)?;
                         Some(symbol)
                     } else {
                         None
@@ -915,18 +889,18 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                         .map_err(|_| Error::InvalidTemplateParameterList)?;
                 }
 
-                nodes.push(self.cache.intern(allocator, tprn).into());
+                nodes.push(self.cache.intern(self.allocator, tprn).into());
             } else if mangled_name.starts_with(b"$E?") {
                 mangled_name
                     .try_consume_str(b"$E")
                     .ok_or(Error::InvalidTemplateParameterList)?;
                 // Reference to symbol
                 let tprn = TemplateParameterReferenceNode {
-                    symbol: Some(self.do_parse(allocator, mangled_name)?),
+                    symbol: Some(self.do_parse(mangled_name)?),
                     affinity: Some(PointerAffinity::Reference),
                     ..Default::default()
                 };
-                nodes.push(self.cache.intern(allocator, tprn).into());
+                nodes.push(self.cache.intern(self.allocator, tprn).into());
             } else if let Some(string) = mangled_name
                 .try_consume_str(b"$F")
                 .or_else(|| mangled_name.try_consume_str(b"$G"))
@@ -950,17 +924,16 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                         .map_err(|_| Error::InvalidTemplateParameterList)?;
                 }
 
-                nodes.push(self.cache.intern(allocator, tprn).into());
+                nodes.push(self.cache.intern(self.allocator, tprn).into());
             } else if mangled_name.try_consume_str(b"$0").is_some() {
                 // Integral non-type template parameter
                 let (value, is_negative) = Self::demangle_number(mangled_name)?;
                 let node = self
                     .cache
-                    .intern(allocator, IntegerLiteralNode { value, is_negative });
+                    .intern(self.allocator, IntegerLiteralNode { value, is_negative });
                 nodes.push(node.into());
             } else {
-                let node =
-                    self.demangle_type(allocator, mangled_name, QualifierMangleMode::Drop)?;
+                let node = self.demangle_type(mangled_name, QualifierMangleMode::Drop)?;
                 nodes.push(node.into());
             }
         }
@@ -968,9 +941,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         // Template parameter lists cannot be variadic, so it can only be terminated
         // by @ (as opposed to 'Z' in the function parameter case).
         Ok(self.cache.intern(
-            allocator,
+            self.allocator,
             NodeArrayNode {
-                nodes: allocator.allocate_slice(&nodes),
+                nodes: self.allocator.allocate_slice(&nodes),
             },
         ))
     }
@@ -1028,7 +1001,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     // First 10 strings can be referenced by special BackReferences ?0, ?1, ..., ?9.
     // Memorize it.
-    fn memorize_string(&mut self, allocator: &'alloc Allocator, s: &'string BStr) -> Result<()> {
+    fn memorize_string(&mut self, s: &'string BStr) -> Result<()> {
         if self
             .backrefs
             .names
@@ -1038,7 +1011,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             Ok(())
         } else {
             let name = self.cache.intern(
-                allocator,
+                self.allocator,
                 NamedIdentifierNode {
                     name: s,
                     ..Default::default()
@@ -1051,28 +1024,23 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         }
     }
 
-    fn memorize_identifier(
-        &mut self,
-        allocator: &'alloc Allocator,
-        identifier: NodeHandle<IIdentifierNode>,
-    ) -> Result<()> {
+    fn memorize_identifier(&mut self, identifier: NodeHandle<IIdentifierNode>) -> Result<()> {
         // Render this class template name into a string buffer so that we can
         // memorize it for the purpose of back-referencing.
-        let mut ob = allocator.new_vec();
+        let mut ob = self.allocator.new_vec();
         identifier
             .resolve(&self.cache)
             .output(&self.cache, &mut ob, OutputFlags::default())?;
-        self.memorize_string(allocator, ob.into_bump_slice().into())
+        self.memorize_string(ob.into_bump_slice().into())
     }
 
     // Parses a type name in the form of A@B@C@@ which represents C::B::A.
     fn demangle_fully_qualified_type_name(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<QualifiedName>> {
-        let identifier = self.demangle_unqualified_type_name(allocator, mangled_name, true)?;
-        self.demangle_name_scope_chain(allocator, mangled_name, identifier)
+        let identifier = self.demangle_unqualified_type_name(mangled_name, true)?;
+        self.demangle_name_scope_chain(mangled_name, identifier)
     }
 
     // Parses a symbol name in the form of A@B@C@@ which represents C::B::A.
@@ -1080,7 +1048,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
     // so we separate out the implementations for flexibility.
     fn demangle_fully_qualified_symbol_name(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<QualifiedName>> {
         // This is the final component of a symbol name (i.e. the leftmost component
@@ -1089,12 +1056,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         // not saved for the purposes of name backreferences, only backref simple
         // names.
 
-        let identifier = self.demangle_unqualified_symbol_name(
-            allocator,
-            mangled_name,
-            NameBackrefBehavior::NBB_Simple,
-        )?;
-        let qn = self.demangle_name_scope_chain(allocator, mangled_name, identifier)?;
+        let identifier =
+            self.demangle_unqualified_symbol_name(mangled_name, NameBackrefBehavior::NBB_Simple)?;
+        let qn = self.demangle_name_scope_chain(mangled_name, identifier)?;
 
         if let Some(sin) = identifier.downcast::<StructorIdentifier>(&self.cache) {
             let class_node = {
@@ -1116,7 +1080,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_unqualified_type_name(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         memorize: bool,
     ) -> Result<NodeHandle<IIdentifierNode>> {
@@ -1124,37 +1087,34 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             self.demangle_back_ref_name(mangled_name).map(Into::into)
         } else if mangled_name.starts_with(b"?$") {
             self.demangle_template_instantiation_name(
-                allocator,
                 mangled_name,
                 NameBackrefBehavior::NBB_Template,
             )
         } else {
-            self.demangle_simple_name(allocator, mangled_name, memorize)
+            self.demangle_simple_name(mangled_name, memorize)
                 .map(Into::into)
         }
     }
 
     fn demangle_unqualified_symbol_name(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         nbb: NameBackrefBehavior,
     ) -> Result<NodeHandle<IIdentifierNode>> {
         if mangled_name.first().is_some_and(u8::is_ascii_digit) {
             self.demangle_back_ref_name(mangled_name).map(Into::into)
         } else if mangled_name.starts_with(b"?$") {
-            self.demangle_template_instantiation_name(allocator, mangled_name, nbb)
+            self.demangle_template_instantiation_name(mangled_name, nbb)
         } else if mangled_name.starts_with(b"?") {
-            self.demangle_function_identifier_code(allocator, mangled_name)
+            self.demangle_function_identifier_code(mangled_name)
         } else {
-            self.demangle_simple_name(allocator, mangled_name, nbb.is_simple())
+            self.demangle_simple_name(mangled_name, nbb.is_simple())
                 .map(Into::into)
         }
     }
 
     fn demangle_name_scope_chain(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         unqualified_name: NodeHandle<IIdentifierNode>,
     ) -> Result<NodeHandle<QualifiedName>> {
@@ -1164,42 +1124,40 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             if mangled_name.try_consume_byte(b'@').is_some() {
                 nodes.reverse();
                 let components = self.cache.intern(
-                    allocator,
+                    self.allocator,
                     NodeArrayNode {
-                        nodes: allocator.allocate_slice(&nodes),
+                        nodes: self.allocator.allocate_slice(&nodes),
                     },
                 );
                 let qn = QualifiedNameNode { components };
-                break Ok(self.cache.intern(allocator, qn));
+                break Ok(self.cache.intern(self.allocator, qn));
             } else if mangled_name.is_empty() {
                 break Err(Error::InvalidNameScopeChain);
             }
-            let node = self.demangle_name_scope_piece(allocator, mangled_name)?;
+            let node = self.demangle_name_scope_piece(mangled_name)?;
             nodes.push(node.into());
         }
     }
 
     fn demangle_name_scope_piece(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<IIdentifierNode>> {
         if mangled_name.first().is_some_and(u8::is_ascii_digit) {
             self.demangle_back_ref_name(mangled_name).map(Into::into)
         } else if mangled_name.starts_with(b"?$") {
             self.demangle_template_instantiation_name(
-                allocator,
                 mangled_name,
                 NameBackrefBehavior::NBB_Template,
             )
         } else if mangled_name.starts_with(b"?A") {
-            self.demangle_anonymous_namespace_name(allocator, mangled_name)
+            self.demangle_anonymous_namespace_name(mangled_name)
                 .map(Into::into)
         } else if mangled_name.starts_with_local_scope_pattern() {
-            self.demangle_locally_scoped_name_piece(allocator, mangled_name)
+            self.demangle_locally_scoped_name_piece(mangled_name)
                 .map(Into::into)
         } else {
-            self.demangle_simple_name(allocator, mangled_name, true)
+            self.demangle_simple_name(mangled_name, true)
                 .map(Into::into)
         }
     }
@@ -1222,7 +1180,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_template_instantiation_name(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         nbb: NameBackrefBehavior,
     ) -> Result<NodeHandle<IIdentifierNode>> {
@@ -1231,13 +1188,10 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             .ok_or(Error::InvalidTemplateInstantiationName)?;
 
         let outer_context = mem::take(&mut self.backrefs);
-        let identifier = self.demangle_unqualified_symbol_name(
-            allocator,
-            mangled_name,
-            NameBackrefBehavior::NBB_Simple,
-        )?;
+        let identifier =
+            self.demangle_unqualified_symbol_name(mangled_name, NameBackrefBehavior::NBB_Simple)?;
         {
-            let template_params = self.demangle_template_parameter_list(allocator, mangled_name)?;
+            let template_params = self.demangle_template_parameter_list(mangled_name)?;
             identifier
                 .resolve_mut(&mut self.cache)
                 .set_template_params(template_params);
@@ -1255,7 +1209,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             ) {
                 return Err(Error::InvalidTemplateInstantiationName);
             }
-            self.memorize_identifier(allocator, identifier)?;
+            self.memorize_identifier(identifier)?;
         }
 
         Ok(identifier)
@@ -1398,7 +1352,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_function_identifier_code(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<IIdentifierNode>> {
         mangled_name
@@ -1406,19 +1359,16 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             .ok_or(Error::InvalidFunctionIdentifierCode)?;
         if mangled_name.try_consume_str(b"__").is_some() {
             self.demangle_function_identifier_code_group(
-                allocator,
                 mangled_name,
                 FunctionIdentifierCodeGroup::DoubleUnder,
             )
         } else if mangled_name.try_consume_byte(b'_').is_some() {
             self.demangle_function_identifier_code_group(
-                allocator,
                 mangled_name,
                 FunctionIdentifierCodeGroup::Under,
             )
         } else {
             self.demangle_function_identifier_code_group(
-                allocator,
                 mangled_name,
                 FunctionIdentifierCodeGroup::Basic,
             )
@@ -1427,7 +1377,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_function_identifier_code_group(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         group: FunctionIdentifierCodeGroup,
     ) -> Result<NodeHandle<IIdentifierNode>> {
@@ -1435,19 +1384,19 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             .try_consume()
             .ok_or(Error::InvalidFunctionIdentifierCode)?;
         match group {
-            FunctionIdentifierCodeGroup::Basic if matches!(ch, b'0' | b'1') => Ok(self
-                .demangle_structor_identifier(allocator, ch == b'1')
-                .into()),
-            FunctionIdentifierCodeGroup::Basic if ch == b'B' => Ok(self
-                .demangle_conversion_operator_identifier(allocator)
-                .into()),
+            FunctionIdentifierCodeGroup::Basic if matches!(ch, b'0' | b'1') => {
+                Ok(self.demangle_structor_identifier(ch == b'1').into())
+            }
+            FunctionIdentifierCodeGroup::Basic if ch == b'B' => {
+                Ok(self.demangle_conversion_operator_identifier().into())
+            }
             FunctionIdentifierCodeGroup::DoubleUnder if ch == b'K' => self
-                .demangle_literal_operator_identifier(allocator, mangled_name)
+                .demangle_literal_operator_identifier(mangled_name)
                 .map(Into::into),
             _ => {
                 let operator = Self::translate_intrinsic_function_code(ch, group)?;
                 let node = IntrinsicFunctionIdentifierNode::new(operator);
-                Ok(self.cache.intern(allocator, node).into())
+                Ok(self.cache.intern(self.allocator, node).into())
             }
         }
     }
@@ -1455,11 +1404,10 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
     #[must_use]
     fn demangle_structor_identifier(
         &mut self,
-        allocator: &'alloc Allocator,
         is_destructor: bool,
     ) -> NodeHandle<StructorIdentifier> {
         self.cache.intern(
-            allocator,
+            self.allocator,
             StructorIdentifierNode {
                 is_destructor,
                 ..Default::default()
@@ -1470,20 +1418,18 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
     #[must_use]
     fn demangle_conversion_operator_identifier(
         &mut self,
-        allocator: &'alloc Allocator,
     ) -> NodeHandle<ConversionOperatorIdentifier> {
         self.cache
-            .intern(allocator, ConversionOperatorIdentifierNode::default())
+            .intern(self.allocator, ConversionOperatorIdentifierNode::default())
     }
 
     fn demangle_literal_operator_identifier(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<LiteralOperatorIdentifier>> {
-        let name = self.demangle_simple_string(allocator, mangled_name, false)?;
+        let name = self.demangle_simple_string(mangled_name, false)?;
         Ok(self.cache.intern(
-            allocator,
+            self.allocator,
             LiteralOperatorIdentifierNode {
                 name,
                 ..Default::default()
@@ -1493,33 +1439,31 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_special_intrinsic(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<Option<NodeHandle<ISymbolNode>>> {
         let sik = Self::consume_special_intrinsic_kind(mangled_name);
         if let Some(sik) = sik {
             let result = match sik {
-                SpecialIntrinsicKind::StringLiteralSymbol => self
-                    .demangle_string_literal(allocator, mangled_name)?
-                    .into(),
+                SpecialIntrinsicKind::StringLiteralSymbol => {
+                    self.demangle_string_literal(mangled_name)?.into()
+                }
                 SpecialIntrinsicKind::Vftable
                 | SpecialIntrinsicKind::Vbtable
                 | SpecialIntrinsicKind::LocalVftable
                 | SpecialIntrinsicKind::RttiCompleteObjLocator => self
-                    .demangle_special_table_symbol_node(allocator, mangled_name, sik)?
+                    .demangle_special_table_symbol_node(mangled_name, sik)?
                     .into(),
-                SpecialIntrinsicKind::VcallThunk => self
-                    .demangle_vcall_thunk_node(allocator, mangled_name)?
-                    .into(),
+                SpecialIntrinsicKind::VcallThunk => {
+                    self.demangle_vcall_thunk_node(mangled_name)?.into()
+                }
                 SpecialIntrinsicKind::LocalStaticGuard => self
-                    .demangle_local_static_guard(allocator, mangled_name, false)?
+                    .demangle_local_static_guard(mangled_name, false)?
                     .into(),
-                SpecialIntrinsicKind::LocalStaticThreadGuard => self
-                    .demangle_local_static_guard(allocator, mangled_name, true)?
-                    .into(),
+                SpecialIntrinsicKind::LocalStaticThreadGuard => {
+                    self.demangle_local_static_guard(mangled_name, true)?.into()
+                }
                 SpecialIntrinsicKind::RttiTypeDescriptor => {
-                    let t =
-                        self.demangle_type(allocator, mangled_name, QualifierMangleMode::Result)?;
+                    let t = self.demangle_type(mangled_name, QualifierMangleMode::Result)?;
                     mangled_name
                         .try_consume_str(b"@8")
                         .ok_or(Error::InvalidSpecialIntrinsic)?;
@@ -1527,36 +1471,31 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                         return Err(Error::InvalidSpecialIntrinsic);
                     }
                     let node = VariableSymbolNode::synthesize(
-                        allocator,
+                        self.allocator,
                         &mut self.cache,
                         t,
                         b"`RTTI Type Descriptor'".into(),
                     );
-                    self.cache.intern(allocator, node).into()
+                    self.cache.intern(self.allocator, node).into()
                 }
                 SpecialIntrinsicKind::RttiBaseClassArray => self
-                    .demangle_untyped_variable(
-                        allocator,
-                        mangled_name,
-                        b"`RTTI Base Class Array'".into(),
-                    )?
+                    .demangle_untyped_variable(mangled_name, b"`RTTI Base Class Array'".into())?
                     .into(),
                 SpecialIntrinsicKind::RttiClassHierarchyDescriptor => self
                     .demangle_untyped_variable(
-                        allocator,
                         mangled_name,
                         b"`RTTI Class Hierarchy Descriptor'".into(),
                     )?
                     .into(),
                 SpecialIntrinsicKind::RttiBaseClassDescriptor => self
-                    .demangle_rtti_base_class_descriptor_node(allocator, mangled_name)?
+                    .demangle_rtti_base_class_descriptor_node(mangled_name)?
                     .into(),
-                SpecialIntrinsicKind::DynamicInitializer => self
-                    .demangle_init_fini_stub(allocator, mangled_name, false)?
-                    .into(),
-                SpecialIntrinsicKind::DynamicAtexitDestructor => self
-                    .demangle_init_fini_stub(allocator, mangled_name, true)?
-                    .into(),
+                SpecialIntrinsicKind::DynamicInitializer => {
+                    self.demangle_init_fini_stub(mangled_name, false)?.into()
+                }
+                SpecialIntrinsicKind::DynamicAtexitDestructor => {
+                    self.demangle_init_fini_stub(mangled_name, true)?.into()
+                }
                 SpecialIntrinsicKind::Typeof | SpecialIntrinsicKind::UdtReturning => {
                     // It's unclear which tools produces these manglings, so demangling
                     // support is not (yet?) implemented.
@@ -1571,7 +1510,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_special_table_symbol_node(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         k: SpecialIntrinsicKind,
     ) -> Result<NodeHandle<SpecialTableSymbol>> {
@@ -1584,13 +1522,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         };
 
         let ni = self.cache.intern(
-            allocator,
+            self.allocator,
             NamedIdentifierNode {
                 name: intrinsic_name.into(),
                 ..Default::default()
             },
         );
-        let name = self.demangle_name_scope_chain(allocator, mangled_name, ni.into())?;
+        let name = self.demangle_name_scope_chain(mangled_name, ni.into())?;
 
         mangled_name
             .try_consume_byte_if(|&x| matches!(x, b'6' | b'7'))
@@ -1598,13 +1536,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
         let (quals, _) = Self::demangle_qualifiers(mangled_name)?;
         let target_name = if mangled_name.try_consume_byte(b'@').is_none() {
-            Some(self.demangle_fully_qualified_type_name(allocator, mangled_name)?)
+            Some(self.demangle_fully_qualified_type_name(mangled_name)?)
         } else {
             None
         };
 
         Ok(self.cache.intern(
-            allocator,
+            self.allocator,
             SpecialTableSymbolNode {
                 name,
                 target_name,
@@ -1615,18 +1553,17 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_local_static_guard(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         is_thread: bool,
     ) -> Result<NodeHandle<LocalStaticGuardVariable>> {
         let lsgi = self.cache.intern(
-            allocator,
+            self.allocator,
             LocalStaticGuardIdentifierNode {
                 is_thread,
                 ..Default::default()
             },
         );
-        let name = self.demangle_name_scope_chain(allocator, mangled_name, lsgi.into())?;
+        let name = self.demangle_name_scope_chain(mangled_name, lsgi.into())?;
 
         let is_visible = if mangled_name.try_consume_str(b"4IA").is_some() {
             false
@@ -1642,28 +1579,28 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                 .map_err(|_| Error::InvalidLocalStaticGuard)?;
         }
 
-        Ok(self
-            .cache
-            .intern(allocator, LocalStaticGuardVariableNode { name, is_visible }))
+        Ok(self.cache.intern(
+            self.allocator,
+            LocalStaticGuardVariableNode { name, is_visible },
+        ))
     }
 
     fn demangle_untyped_variable(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         variable_name: &'static BStr,
     ) -> Result<NodeHandle<VariableSymbol>> {
         let ni = self.cache.intern(
-            allocator,
+            self.allocator,
             NamedIdentifierNode {
                 name: variable_name,
                 ..Default::default()
             },
         );
-        let name = Some(self.demangle_name_scope_chain(allocator, mangled_name, ni.into())?);
+        let name = Some(self.demangle_name_scope_chain(mangled_name, ni.into())?);
         if mangled_name.try_consume_byte(b'8').is_some() {
             Ok(self.cache.intern(
-                allocator,
+                self.allocator,
                 VariableSymbolNode {
                     name,
                     ..Default::default()
@@ -1676,7 +1613,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_rtti_base_class_descriptor_node(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<VariableSymbol>> {
         let nv_offset = Self::demangle_unsigned(mangled_name)?
@@ -1693,7 +1629,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             .map_err(|_| Error::InvalidRttiBaseClassDescriptorNode)?;
 
         let rbcdn = self.cache.intern(
-            allocator,
+            self.allocator,
             RttiBaseClassDescriptorNode {
                 nv_offset,
                 vbptr_offset,
@@ -1702,13 +1638,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                 ..Default::default()
             },
         );
-        let name = Some(self.demangle_name_scope_chain(allocator, mangled_name, rbcdn.into())?);
+        let name = Some(self.demangle_name_scope_chain(mangled_name, rbcdn.into())?);
         mangled_name
             .try_consume_byte(b'8')
             .ok_or(Error::InvalidRttiBaseClassDescriptorNode)?;
 
         Ok(self.cache.intern(
-            allocator,
+            self.allocator,
             VariableSymbolNode {
                 name,
                 ..Default::default()
@@ -1718,12 +1654,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_init_fini_stub(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         is_destructor: bool,
     ) -> Result<NodeHandle<FunctionSymbol>> {
         let is_known_static_data_member = mangled_name.try_consume_byte(b'?').is_some();
-        let symbol = self.demangle_declarator(allocator, mangled_name)?;
+        let symbol = self.demangle_declarator(mangled_name)?;
         if let Some(variable) = symbol.downcast::<VariableSymbol>(&self.cache) {
             // Older versions of clang mangled this type of symbol incorrectly. They
             // would omit the leading ? and they would only emit a single @ at the end.
@@ -1739,9 +1674,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                     .ok_or(Error::InvalidInitFiniStub)?;
             }
 
-            let fsn = self.demangle_function_encoding(allocator, mangled_name)?;
+            let fsn = self.demangle_function_encoding(mangled_name)?;
             let dsin = self.cache.intern(
-                allocator,
+                self.allocator,
                 DynamicStructorIdentifierNode {
                     template_params: TemplateParameters::default(),
                     identifier: variable.into(),
@@ -1749,9 +1684,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                 },
             );
             let name = {
-                let x =
-                    QualifiedNameNode::synthesize_from_id(allocator, &mut self.cache, dsin.into());
-                self.cache.intern(allocator, x)
+                let x = QualifiedNameNode::synthesize_from_id(
+                    self.allocator,
+                    &mut self.cache,
+                    dsin.into(),
+                );
+                self.cache.intern(self.allocator, x)
             };
             fsn.resolve_mut(&mut self.cache).name = Some(name);
             Ok(fsn)
@@ -1767,15 +1705,15 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                         identifier: fsn.name.ok_or(Error::InvalidInitFiniStub)?.into(),
                         is_destructor,
                     };
-                    self.cache.intern(allocator, x)
+                    self.cache.intern(self.allocator, x)
                 };
                 let name = {
                     let x = QualifiedNameNode::synthesize_from_id(
-                        allocator,
+                        self.allocator,
                         &mut self.cache,
                         dstn.into(),
                     );
-                    self.cache.intern(allocator, x)
+                    self.cache.intern(self.allocator, x)
                 };
                 fsn.resolve_mut(&mut self.cache).name = Some(name);
                 Ok(fsn)
@@ -1787,13 +1725,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_simple_name(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         memorize: bool,
     ) -> Result<NodeHandle<NamedIdentifier>> {
-        let name = self.demangle_simple_string(allocator, mangled_name, memorize)?;
+        let name = self.demangle_simple_string(mangled_name, memorize)?;
         Ok(self.cache.intern(
-            allocator,
+            self.allocator,
             NamedIdentifierNode {
                 name,
                 ..Default::default()
@@ -1803,7 +1740,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_anonymous_namespace_name(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<NamedIdentifier>> {
         mangled_name
@@ -1815,12 +1751,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         let namespace_key = mangled_name
             .try_consume_n(pos)
             .ok_or(Error::InvalidAnonymousNamespaceName)?;
-        self.memorize_string(allocator, namespace_key)?;
+        self.memorize_string(namespace_key)?;
         mangled_name
             .try_consume_byte(b'@')
             .ok_or(Error::InvalidAnonymousNamespaceName)?;
         Ok(self.cache.intern(
-            allocator,
+            self.allocator,
             NamedIdentifierNode {
                 name: b"`anonymous namespace'".into(),
                 ..Default::default()
@@ -1830,7 +1766,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
     fn demangle_locally_scoped_name_piece(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<NamedIdentifier>> {
         let mut identifier = NamedIdentifierNode::default();
@@ -1846,21 +1781,20 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         mangled_name
             .try_consume_byte(b'?')
             .ok_or(Error::InvalidLocallyScopedNamePiece)?;
-        let scope = self.do_parse(allocator, mangled_name)?.resolve(&self.cache);
+        let scope = self.do_parse(mangled_name)?.resolve(&self.cache);
 
         // Render the parent symbol's name into a buffer.
-        let mut ob = allocator.new_vec();
+        let mut ob = self.allocator.new_vec();
         write!(ob, "`")?;
         scope.output(&self.cache, &mut ob, OutputFlags::default())?;
         write!(ob, "'::`{number}'")?;
 
         identifier.name = ob.into_bump_slice().into();
-        Ok(self.cache.intern(allocator, identifier))
+        Ok(self.cache.intern(self.allocator, identifier))
     }
 
     fn demangle_string_literal(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<EncodedStringLiteral>> {
         // Prefix indicating the beginning of a string literal
@@ -1894,7 +1828,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             return Err(Error::InvalidStringLiteral);
         }
 
-        let mut ob = allocator.new_vec();
+        let mut ob = self.allocator.new_vec();
         let (char, is_truncated) = if is_wchar_t {
             let char = CharKind::Wchar;
             let is_truncated = string_byte_len > 64;
@@ -1953,18 +1887,17 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             is_truncated,
             char,
         };
-        Ok(self.cache.intern(allocator, result))
+        Ok(self.cache.intern(self.allocator, result))
     }
 
     fn demangle_vcall_thunk_node(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
     ) -> Result<NodeHandle<FunctionSymbol>> {
         let vtin = self
             .cache
-            .intern(allocator, VcallThunkIdentifierNode::default());
-        let name = Some(self.demangle_name_scope_chain(allocator, mangled_name, vtin.into())?);
+            .intern(self.allocator, VcallThunkIdentifierNode::default());
+        let name = Some(self.demangle_name_scope_chain(mangled_name, vtin.into())?);
 
         mangled_name
             .try_consume_str(b"$B")
@@ -1978,7 +1911,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         let signature = self
             .cache
             .intern(
-                allocator,
+                self.allocator,
                 ThunkSignatureNode {
                     function_node: FunctionSignatureNode {
                         call_convention: Self::demangle_calling_convention(mangled_name)?,
@@ -1991,14 +1924,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             .into();
         Ok(self
             .cache
-            .intern(allocator, FunctionSymbolNode { name, signature }))
+            .intern(self.allocator, FunctionSymbolNode { name, signature }))
     }
 
     // Returns mangled_name's prefix before the first '@', or an error if
     // mangled_name contains no '@' or the prefix has length 0.
     fn demangle_simple_string(
         &mut self,
-        allocator: &'alloc Allocator,
         mangled_name: &mut &'string BStr,
         memorize: bool,
     ) -> Result<&'string BStr> {
@@ -2015,7 +1947,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
                 .try_consume_byte(b'@')
                 .ok_or(Error::InvalidSimpleString)?;
             if memorize {
-                self.memorize_string(allocator, string)?;
+                self.memorize_string(string)?;
             }
             Ok(string)
         }
