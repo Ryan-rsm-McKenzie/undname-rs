@@ -94,7 +94,7 @@ impl Allocator {
         self.alloc.alloc_slice_copy(src)
     }
 
-    pub(crate) fn new_vec<'this>(&'this self) -> BumpVec<'this, u8> {
+    pub(crate) fn new_vec(&self) -> BumpVec<'_, u8> {
         BumpVec::new_in(&self.alloc)
     }
 }

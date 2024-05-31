@@ -5,7 +5,7 @@ The latest development docs are available at:
 
 The stable release docs are available at:
 
-Changelogs are available at: https://github.com/Ryan-rsm-McKenzie/undname-rs/releases
+Changelogs are available at: <https://github.com/Ryan-rsm-McKenzie/undname-rs/releases>
 
 # Example
 
