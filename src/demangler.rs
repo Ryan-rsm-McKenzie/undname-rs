@@ -1401,7 +1401,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         }
     }
 
-    #[must_use]
     fn demangle_structor_identifier(
         &mut self,
         is_destructor: bool,
@@ -1415,7 +1414,6 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         )
     }
 
-    #[must_use]
     fn demangle_conversion_operator_identifier(
         &mut self,
     ) -> Result<NodeHandle<ConversionOperatorIdentifier>> {

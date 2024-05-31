@@ -80,11 +80,11 @@ macro_rules! safe_write {
 	($dst:expr, $($arg:tt)*) => {
 		if $dst.len() > (1 << 20) {
 			// a demangled string that's over a mb in length? bail
-			Err(crate::Error::MaliciousInput)
+			Err($crate::Error::MaliciousInput)
 		} else {
 			match write!($dst, $($arg)*) {
 				Ok(ok) => Ok(ok),
-				Err(err) => Err(crate::Error::from(err)),
+				Err(err) => Err($crate::Error::from(err)),
 			}
 		}
 	};

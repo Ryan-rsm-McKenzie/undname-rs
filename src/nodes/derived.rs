@@ -924,7 +924,6 @@ impl QualifiedNameNode {
         }
     }
 
-    #[must_use]
     pub(crate) fn synthesize_from_id<'alloc>(
         allocator: &'alloc Allocator,
         cache: &mut NodeCache<'alloc>,
@@ -939,7 +938,6 @@ impl QualifiedNameNode {
         Ok(Self { components })
     }
 
-    #[must_use]
     pub(crate) fn synthesize_from_name<'alloc, 'string: 'alloc>(
         allocator: &'alloc Allocator,
         cache: &mut NodeCache<'alloc>,
@@ -1086,7 +1084,6 @@ pub(crate) struct VariableSymbolNode {
 }
 
 impl VariableSymbolNode {
-    #[must_use]
     pub(crate) fn synthesize<'alloc, 'string: 'alloc>(
         allocator: &'alloc Allocator,
         cache: &mut NodeCache<'alloc>,
