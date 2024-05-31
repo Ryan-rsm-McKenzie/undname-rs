@@ -246,10 +246,7 @@ bitflags::bitflags! {
     pub struct Flags: u8 {
         /// Suppress calling conventions (`__cdecl`/`__fastcall`/`__thiscall`) from being included in the output.
         /// ```rust
-        /// use undname::{
-        /// 	ByteSlice as _,
-        /// 	Flags,
-        /// };
+        /// use undname::Flags;
         /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_CALLING_CONVENTION).unwrap();
@@ -260,10 +257,7 @@ bitflags::bitflags! {
 
         /// Suppress tag specifiers (`class`/`struct`/`union`) from being included in the output.
         /// ```rust
-        /// use undname::{
-        /// 	ByteSlice as _,
-        /// 	Flags,
-        /// };
+        /// use undname::Flags;
         /// let input = b"?x@@3PEAVty@@EA".into();
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_TAG_SPECIFIER).unwrap();
@@ -274,10 +268,7 @@ bitflags::bitflags! {
 
         /// Suppress access specifiers (`private`/`public`/`protected`) from being included in the output.
         /// ```rust
-        /// use undname::{
-        /// 	ByteSlice as _,
-        /// 	Flags,
-        /// };
+        /// use undname::Flags;
         /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_ACCESS_SPECIFIER).unwrap();
@@ -288,10 +279,7 @@ bitflags::bitflags! {
 
         /// Suppress member types (`static`/`virtual`/`extern "C"`) from being included in the output.
         /// ```rust
-        /// use undname::{
-        /// 	ByteSlice as _,
-        /// 	Flags,
-        /// };
+        /// use undname::Flags;
         /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_MEMBER_TYPE).unwrap();
@@ -302,10 +290,7 @@ bitflags::bitflags! {
 
         /// Suppress return types from being included in the output.
         /// ```rust
-        /// use undname::{
-        /// 	ByteSlice as _,
-        /// 	Flags,
-        /// };
+        /// use undname::Flags;
         /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_RETURN_TYPE).unwrap();
@@ -316,10 +301,7 @@ bitflags::bitflags! {
 
         /// Suppress variable types from being included in the output.
         /// ```rust
-        /// use undname::{
-        /// 	ByteSlice as _,
-        /// 	Flags,
-        /// };
+        /// use undname::Flags;
         /// let input = b"?x@@3PEAEEA".into();
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_VARIABLE_TYPE).unwrap();
