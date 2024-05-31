@@ -1251,7 +1251,7 @@ fn bench_fibs(c: &mut Criterion) {
     });
 
     group.bench_with_input("msvc_demangler", &INPUTS, |b, inputs| {
-        b.iter_with_large_drop(|| {
+        b.iter(|| {
             for &input in inputs {
                 let output = msvc_demangler::demangle(input, DemangleFlags::empty());
                 hint::black_box(&output);
