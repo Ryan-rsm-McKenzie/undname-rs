@@ -206,13 +206,91 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 bitflags::bitflags! {
+    /// `Flags` control how types are printed during demangling. See each flag for more info on what exactly they do.
     #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
     pub struct Flags: u8 {
+        /// Suppress calling conventions (`__cdecl`/`__fastcall`/`__thiscall`) from being included in the output.
+        /// ```rust
+        /// use undname::{
+        /// 	ByteSlice as _,
+        /// 	Flags,
+        /// };
+        /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NO_CALLING_CONVENTION).unwrap();
+        /// assert_eq!(without_flag, b"public: virtual int __cdecl MyClass::func(int, int)"[..]);
+        /// assert_eq!(with_flag,    b"public: virtual int MyClass::func(int, int)"[..]);
+        /// ```
         const NO_CALLING_CONVENTION = 1 << 0;
+
+        /// Suppress tag specifiers (`class`/`struct`/`union`) from being included in the output.
+        /// ```rust
+        /// use undname::{
+        /// 	ByteSlice as _,
+        /// 	Flags,
+        /// };
+        /// let input = b"?x@@3PEAVty@@EA".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NO_TAG_SPECIFIER).unwrap();
+        /// assert_eq!(without_flag, b"class ty *x"[..]);
+        /// assert_eq!(with_flag,    b"ty *x"[..]);
+        /// ```
         const NO_TAG_SPECIFIER = 1 << 1;
+
+        /// Suppress access specifiers (`private`/`public`/`protected`) from being included in the output.
+        /// ```rust
+        /// use undname::{
+        /// 	ByteSlice as _,
+        /// 	Flags,
+        /// };
+        /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NO_ACCESS_SPECIFIER).unwrap();
+        /// assert_eq!(without_flag, b"public: virtual int __cdecl MyClass::func(int, int)"[..]);
+        /// assert_eq!(with_flag,    b"virtual int __cdecl MyClass::func(int, int)"[..]);
+        /// ```
         const NO_ACCESS_SPECIFIER = 1 << 2;
+
+        /// Suppress member types (`static`/`virtual`/`extern "C"`) from being included in the output.
+        /// ```rust
+        /// use undname::{
+        /// 	ByteSlice as _,
+        /// 	Flags,
+        /// };
+        /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NO_MEMBER_TYPE).unwrap();
+        /// assert_eq!(without_flag, b"public: virtual int __cdecl MyClass::func(int, int)"[..]);
+        /// assert_eq!(with_flag,    b"public: int __cdecl MyClass::func(int, int)"[..]);
+        /// ```
         const NO_MEMBER_TYPE = 1 << 3;
+
+        /// Suppress return types from being included in the output.
+        /// ```rust
+        /// use undname::{
+        /// 	ByteSlice as _,
+        /// 	Flags,
+        /// };
+        /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NO_RETURN_TYPE).unwrap();
+        /// assert_eq!(without_flag, b"public: virtual int __cdecl MyClass::func(int, int)"[..]);
+        /// assert_eq!(with_flag,    b"public: virtual __cdecl MyClass::func(int, int)"[..]);
+        /// ```
         const NO_RETURN_TYPE = 1 << 4;
+
+        /// Suppress variable types from being included in the output.
+        /// ```rust
+        /// use undname::{
+        /// 	ByteSlice as _,
+        /// 	Flags,
+        /// };
+        /// let input = b"?x@@3PEAEEA".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NO_VARIABLE_TYPE).unwrap();
+        /// assert_eq!(without_flag, b"unsigned char *x"[..]);
+        /// assert_eq!(with_flag,    b"x"[..]);
+        /// ```
         const NO_VARIABLE_TYPE = 1 << 5;
     }
 }
