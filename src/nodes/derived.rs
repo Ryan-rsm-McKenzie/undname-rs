@@ -42,6 +42,7 @@ use crate::{
         WriteableNode,
         WriteableTypeNode,
     },
+    safe_write,
     Allocator,
     OutputFlags,
     Writer,
@@ -103,7 +104,7 @@ impl WriteableTypeNode for PrimitiveTypeNode {
             PrimitiveKind::Ldouble => "long double",
             PrimitiveKind::Nullptr => "std::nullptr_t",
         };
-        write!(ob, "{kind}")?;
+        safe_write!(ob, "{kind}")?;
         self.quals.output(ob, true, false)
     }
 
@@ -173,32 +174,32 @@ impl WriteableTypeNode for FunctionSignatureNode {
     ) -> Result<()> {
         if !flags.no_access_specifier() {
             if self.function_class.is_public() {
-                write!(ob, "public: ")?;
+                safe_write!(ob, "public: ")?;
             }
             if self.function_class.is_protected() {
-                write!(ob, "protected: ")?;
+                safe_write!(ob, "protected: ")?;
             }
             if self.function_class.is_private() {
-                write!(ob, "private: ")?;
+                safe_write!(ob, "private: ")?;
             }
         }
 
         if !flags.no_member_type() {
             if !self.function_class.is_global() && self.function_class.is_static() {
-                write!(ob, "static ")?;
+                safe_write!(ob, "static ")?;
             }
             if self.function_class.is_virtual() {
-                write!(ob, "virtual ")?;
+                safe_write!(ob, "virtual ")?;
             }
             if self.function_class.is_extern_c() {
-                write!(ob, "extern \"C\" ")?;
+                safe_write!(ob, "extern \"C\" ")?;
             }
         }
 
         if !flags.no_return_type() {
             if let Some(return_type) = self.return_type.map(|x| x.resolve(cache)) {
                 return_type.output_pre(cache, ob, flags)?;
-                write!(ob, " ")?;
+                safe_write!(ob, " ")?;
             }
         }
 
@@ -218,42 +219,42 @@ impl WriteableTypeNode for FunctionSignatureNode {
         flags: OutputFlags,
     ) -> Result<()> {
         if !self.function_class.no_parameter_list() {
-            write!(ob, "(")?;
+            safe_write!(ob, "(")?;
             if let Some(params) = self.params.map(|x| x.resolve(cache)) {
                 params.output(cache, ob, flags)?;
             } else {
-                write!(ob, "void")?;
+                safe_write!(ob, "void")?;
             }
 
             if self.is_variadic {
                 if ob.last().is_some_and(|x| *x != b'(') {
-                    write!(ob, ", ")?;
+                    safe_write!(ob, ", ")?;
                 }
-                write!(ob, "...")?;
+                safe_write!(ob, "...")?;
             }
-            write!(ob, ")")?;
+            safe_write!(ob, ")")?;
         }
 
         if self.quals.is_const() {
-            write!(ob, " const")?;
+            safe_write!(ob, " const")?;
         }
         if self.quals.is_volatile() {
-            write!(ob, " volatile")?;
+            safe_write!(ob, " volatile")?;
         }
         if self.quals.is_restrict() {
-            write!(ob, " __restrict")?;
+            safe_write!(ob, " __restrict")?;
         }
         if self.quals.is_unaligned() {
-            write!(ob, " __unaligned")?;
+            safe_write!(ob, " __unaligned")?;
         }
 
         if self.is_noexcept {
-            write!(ob, " noexcept")?;
+            safe_write!(ob, " noexcept")?;
         }
 
         match self.ref_qualifier {
-            Some(FunctionRefQualifier::Reference) => write!(ob, " &")?,
-            Some(FunctionRefQualifier::RValueReference) => write!(ob, " &&")?,
+            Some(FunctionRefQualifier::Reference) => safe_write!(ob, " &")?,
+            Some(FunctionRefQualifier::RValueReference) => safe_write!(ob, " &&")?,
             _ => (),
         }
 
@@ -308,7 +309,7 @@ impl WriteableTypeNode for ThunkSignatureNode {
         ob: &mut W,
         flags: OutputFlags,
     ) -> Result<()> {
-        write!(ob, "[thunk]: ")?;
+        safe_write!(ob, "[thunk]: ")?;
         self.function_node.output_pre(cache, ob, flags)
     }
 
@@ -326,12 +327,12 @@ impl WriteableTypeNode for ThunkSignatureNode {
         } = self.this_adjust;
 
         if self.function_class.has_static_this_adjust() {
-            write!(ob, "`adjustor{{{static_offset}}}'")?;
+            safe_write!(ob, "`adjustor{{{static_offset}}}'")?;
         } else if self.function_class.has_virtual_this_adjust() {
             if self.function_class.has_virtual_this_adjust_ex() {
-                write!(ob, "`vtordispex{{{vbptr_offset}, {vboffset_offset}, {vtor_disp_offset}, {static_offset}}}'")?;
+                safe_write!(ob, "`vtordispex{{{vbptr_offset}, {vboffset_offset}, {vtor_disp_offset}, {static_offset}}}'")?;
             } else {
-                write!(ob, "`vtordisp{{{vtor_disp_offset}, {static_offset}}}'")?;
+                safe_write!(ob, "`vtordisp{{{vtor_disp_offset}, {static_offset}}}'")?;
             }
         }
 
@@ -379,33 +380,33 @@ impl WriteableTypeNode for PointerTypeNode {
         super::output_space_if_necessary(ob)?;
 
         if self.quals.is_unaligned() {
-            write!(ob, "__unaligned ")?;
+            safe_write!(ob, "__unaligned ")?;
         }
 
         match pointee {
-            TypeNode::ArrayType(_) => write!(ob, "(")?,
+            TypeNode::ArrayType(_) => safe_write!(ob, "(")?,
             TypeNode::Signature(sig) => {
-                write!(ob, "(")?;
+                safe_write!(ob, "(")?;
                 if let Some(call_convention) = sig.as_node().call_convention {
                     call_convention.output(ob)?;
                 }
-                write!(ob, " ")?;
+                safe_write!(ob, " ")?;
             }
             _ => (),
         }
 
         if let Some(class_parent) = self.class_parent.map(|x| x.resolve(cache)) {
             class_parent.output(cache, ob, flags)?;
-            write!(ob, "::")?;
+            safe_write!(ob, "::")?;
         }
 
         let affinity = self
             .affinity
             .expect("pointer should have an affinity by this point");
         match affinity {
-            PointerAffinity::Pointer => write!(ob, "*")?,
-            PointerAffinity::Reference => write!(ob, "&")?,
-            PointerAffinity::RValueReference => write!(ob, "&&")?,
+            PointerAffinity::Pointer => safe_write!(ob, "*")?,
+            PointerAffinity::Reference => safe_write!(ob, "&")?,
+            PointerAffinity::RValueReference => safe_write!(ob, "&&")?,
         }
 
         self.quals.output(ob, false, false)
@@ -419,7 +420,7 @@ impl WriteableTypeNode for PointerTypeNode {
     ) -> Result<()> {
         let pointee = self.pointee.resolve(cache);
         if matches!(pointee, TypeNode::ArrayType(_) | TypeNode::Signature(_)) {
-            write!(ob, ")")?;
+            safe_write!(ob, ")")?;
         }
         pointee.output_post(cache, ob, flags)
     }
@@ -452,7 +453,7 @@ impl WriteableTypeNode for TagTypeNode {
                 TagKind::Union => "union",
                 TagKind::Enum => "enum",
             };
-            write!(ob, "{tag} ")?;
+            safe_write!(ob, "{tag} ")?;
         }
 
         self.qualified_name
@@ -507,7 +508,7 @@ impl ArrayTypeNode {
         if let Some((&first, rest)) = dimensions.nodes.split_first() {
             Self::output_one_dimension(cache, ob, flags, first)?;
             for &handle in rest {
-                write!(ob, "][")?;
+                safe_write!(ob, "][")?;
                 Self::output_one_dimension(cache, ob, flags, handle)?;
             }
         }
@@ -541,9 +542,9 @@ impl WriteableTypeNode for ArrayTypeNode {
         ob: &mut W,
         flags: OutputFlags,
     ) -> Result<()> {
-        write!(ob, "[")?;
+        safe_write!(ob, "[")?;
         self.output_dimensions_impl(cache, ob, flags)?;
-        write!(ob, "]")?;
+        safe_write!(ob, "]")?;
         self.element_type
             .resolve(cache)
             .output_post(cache, ob, flags)
@@ -583,9 +584,9 @@ pub(crate) struct TemplateParameters(pub(crate) Option<NodeHandle<NodeArray>>);
 impl TemplateParameters {
     fn output<W: Writer>(self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
         if let Some(this) = self.map(|x| x.resolve(cache)) {
-            write!(ob, "<")?;
+            safe_write!(ob, "<")?;
             this.output(cache, ob, flags)?;
-            write!(ob, ">")?;
+            safe_write!(ob, ">")?;
         }
         Ok(())
     }
@@ -613,7 +614,7 @@ pub(crate) struct VcallThunkIdentifierNode {
 
 impl WriteableNode for VcallThunkIdentifierNode {
     fn output<W: Writer>(&self, _: &NodeCache, ob: &mut W, _: OutputFlags) -> Result<()> {
-        write!(ob, "`vcall'{{{}, {{flat}}}}", self.offset_in_vtable)
+        safe_write!(ob, "`vcall'{{{}, {{flat}}}}", self.offset_in_vtable)
     }
 }
 
@@ -645,21 +646,21 @@ pub(crate) struct DynamicStructorIdentifierNode {
 impl WriteableNode for DynamicStructorIdentifierNode {
     fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
         if self.is_destructor {
-            write!(ob, "`dynamic atexit destructor for ")?;
+            safe_write!(ob, "`dynamic atexit destructor for ")?;
         } else {
-            write!(ob, "`dynamic initializer for ")?;
+            safe_write!(ob, "`dynamic initializer for ")?;
         }
 
         match self.identifier {
             DynamicStructorIdentifier::Variable(variable) => {
-                write!(ob, "`")?;
+                safe_write!(ob, "`")?;
                 variable.resolve(cache).output(cache, ob, flags)?;
-                write!(ob, "''")?;
+                safe_write!(ob, "''")?;
             }
             DynamicStructorIdentifier::Name(name) => {
-                write!(ob, "'")?;
+                safe_write!(ob, "'")?;
                 name.resolve(cache).output(cache, ob, flags)?;
-                write!(ob, "''")?;
+                safe_write!(ob, "''")?;
             }
         }
 
@@ -675,7 +676,7 @@ pub(crate) struct NamedIdentifierNode<'alloc> {
 
 impl<'alloc> WriteableNode for NamedIdentifierNode<'alloc> {
     fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        write!(ob, "{}", self.name)?;
+        safe_write!(ob, "{}", self.name)?;
         self.template_params.output(cache, ob, flags)
     }
 }
@@ -771,7 +772,7 @@ impl WriteableNode for IntrinsicFunctionIdentifierNode {
                 IntrinsicFunctionKind::CoAwait => "operator co_await",
                 IntrinsicFunctionKind::Spaceship => "operator<=>",
             };
-            write!(ob, "{op}")?;
+            safe_write!(ob, "{op}")?;
         }
         self.template_params.output(cache, ob, flags)
     }
@@ -785,7 +786,7 @@ pub(crate) struct LiteralOperatorIdentifierNode<'alloc> {
 
 impl<'alloc> WriteableNode for LiteralOperatorIdentifierNode<'alloc> {
     fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        write!(ob, "operator \"\"{}", self.name)?;
+        safe_write!(ob, "operator \"\"{}", self.name)?;
         self.template_params.output(cache, ob, flags)
     }
 }
@@ -800,13 +801,13 @@ pub(crate) struct LocalStaticGuardIdentifierNode {
 impl WriteableNode for LocalStaticGuardIdentifierNode {
     fn output<W: Writer>(&self, _: &NodeCache, ob: &mut W, _: OutputFlags) -> Result<()> {
         if self.is_thread {
-            write!(ob, "`local static thread guard'")?;
+            safe_write!(ob, "`local static thread guard'")?;
         } else {
-            write!(ob, "`local static guard'")?;
+            safe_write!(ob, "`local static guard'")?;
         }
 
         if self.scope_index > 0 {
-            write!(ob, "{{{}}}", self.scope_index)?;
+            safe_write!(ob, "{{{}}}", self.scope_index)?;
         }
 
         Ok(())
@@ -821,9 +822,9 @@ pub(crate) struct ConversionOperatorIdentifierNode {
 
 impl WriteableNode for ConversionOperatorIdentifierNode {
     fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        write!(ob, "operator")?;
+        safe_write!(ob, "operator")?;
         self.template_params.output(cache, ob, flags)?;
-        write!(ob, " ")?;
+        safe_write!(ob, " ")?;
 
         if let Some(target_type) = self.target_type.map(|x| x.resolve(cache)) {
             target_type.output(cache, ob, flags)?;
@@ -843,7 +844,7 @@ pub(crate) struct StructorIdentifierNode {
 impl WriteableNode for StructorIdentifierNode {
     fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
         if self.is_destructor {
-            write!(ob, "~")?;
+            safe_write!(ob, "~")?;
         }
         if let Some(class) = self.class {
             class.resolve(cache).output(cache, ob, flags)?;
@@ -863,10 +864,13 @@ pub(crate) struct RttiBaseClassDescriptorNode {
 
 impl WriteableNode for RttiBaseClassDescriptorNode {
     fn output<W: Writer>(&self, _: &NodeCache, ob: &mut W, _: OutputFlags) -> Result<()> {
-        write!(
+        safe_write!(
             ob,
             "`RTTI Base Class Descriptor at ({}, {}, {}, {})'",
-            self.nv_offset, self.vbptr_offset, self.vbtable_offset, self.flags
+            self.nv_offset,
+            self.vbptr_offset,
+            self.vbtable_offset,
+            self.flags
         )
     }
 }
@@ -887,7 +891,7 @@ impl<'alloc> NodeArrayNode<'alloc> {
         if let Some((&first, rest)) = self.nodes.split_first() {
             first.resolve(cache).output(cache, ob, flags)?;
             for &node in rest {
-                write!(ob, "{separator}")?;
+                safe_write!(ob, "{separator}")?;
                 node.resolve(cache).output(cache, ob, flags)?;
             }
         }
@@ -925,14 +929,14 @@ impl QualifiedNameNode {
         allocator: &'alloc Allocator,
         cache: &mut NodeCache<'alloc>,
         identifier: NodeHandle<IIdentifierNode>,
-    ) -> Self {
+    ) -> Result<Self> {
         let components = cache.intern(
             allocator,
             NodeArrayNode {
                 nodes: allocator.allocate_slice(&[identifier.into()]),
             },
-        );
-        Self { components }
+        )?;
+        Ok(Self { components })
     }
 
     #[must_use]
@@ -940,14 +944,14 @@ impl QualifiedNameNode {
         allocator: &'alloc Allocator,
         cache: &mut NodeCache<'alloc>,
         name: &'string BStr,
-    ) -> Self {
+    ) -> Result<Self> {
         let id = cache.intern(
             allocator,
             NamedIdentifierNode {
                 name,
                 ..Default::default()
             },
-        );
+        )?;
         Self::synthesize_from_id(allocator, cache, id.into())
     }
 }
@@ -972,24 +976,24 @@ pub(crate) struct TemplateParameterReferenceNode {
 impl WriteableNode for TemplateParameterReferenceNode {
     fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
         if !self.thunk_offsets.is_empty() {
-            write!(ob, "{{")?;
+            safe_write!(ob, "{{")?;
         } else if self.affinity.is_some_and(|x| x == PointerAffinity::Pointer) {
-            write!(ob, "&")?;
+            safe_write!(ob, "&")?;
         }
 
         if let Some(symbol) = self.symbol.map(|x| x.resolve(cache)) {
             symbol.output(cache, ob, flags)?;
             if !self.thunk_offsets.is_empty() {
-                write!(ob, ", ")?;
+                safe_write!(ob, ", ")?;
             }
         }
 
         if let Some((&first, rest)) = self.thunk_offsets.split_first() {
-            write!(ob, "{first}")?;
+            safe_write!(ob, "{first}")?;
             for offset in rest {
-                write!(ob, ", {offset}")?;
+                safe_write!(ob, ", {offset}")?;
             }
-            write!(ob, "}}")?;
+            safe_write!(ob, "}}")?;
         }
 
         Ok(())
@@ -1005,7 +1009,7 @@ pub(crate) struct IntegerLiteralNode {
 impl WriteableNode for IntegerLiteralNode {
     fn output<W: Writer>(&self, _: &NodeCache, ob: &mut W, _: OutputFlags) -> Result<()> {
         let sign = if self.is_negative { "-" } else { "" };
-        write!(ob, "{sign}{}", self.value)
+        safe_write!(ob, "{sign}{}", self.value)
     }
 }
 
@@ -1032,9 +1036,9 @@ impl WriteableNode for SpecialTableSymbolNode {
         self.quals.output(ob, false, true)?;
         self.name.resolve(cache).output(cache, ob, flags)?;
         if let Some(target_name) = self.target_name.map(|x| x.resolve(cache)) {
-            write!(ob, "{{for `")?;
+            safe_write!(ob, "{{for `")?;
             target_name.output(cache, ob, flags)?;
-            write!(ob, "'}}")?;
+            safe_write!(ob, "'}}")?;
         }
         Ok(())
     }
@@ -1070,7 +1074,7 @@ impl<'alloc> WriteableNode for EncodedStringLiteralNode<'alloc> {
             CharKind::Char32 => "U\"",
         };
         let truncation = if self.is_truncated { "..." } else { "" };
-        write!(ob, "{prefix}{}\"{truncation}", self.decoded_string)
+        safe_write!(ob, "{prefix}{}\"{truncation}", self.decoded_string)
     }
 }
 
@@ -1088,17 +1092,17 @@ impl VariableSymbolNode {
         cache: &mut NodeCache<'alloc>,
         r#type: NodeHandle<ITypeNode>,
         variable_name: &'string BStr,
-    ) -> Self {
+    ) -> Result<Self> {
         let name = {
-            let x = QualifiedNameNode::synthesize_from_name(allocator, cache, variable_name);
-            cache.intern(allocator, x)
+            let x = QualifiedNameNode::synthesize_from_name(allocator, cache, variable_name)?;
+            cache.intern(allocator, x)?
         };
 
-        Self {
+        Ok(Self {
             name: Some(name),
             sc: None,
             r#type: Some(r#type),
-        }
+        })
     }
 }
 
@@ -1113,11 +1117,11 @@ impl WriteableNode for VariableSymbolNode {
 
         if !flags.no_access_specifier() {
             if let Some(access_spec) = access_spec {
-                write!(ob, "{access_spec}: ")?;
+                safe_write!(ob, "{access_spec}: ")?;
             }
         }
         if !flags.no_member_type() && is_static {
-            write!(ob, "static ")?;
+            safe_write!(ob, "static ")?;
         }
 
         let r#type = (!flags.no_variable_type())

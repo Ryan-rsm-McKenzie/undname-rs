@@ -14,9 +14,9 @@
 
 use crate::{
     nodes::Result,
+    safe_write,
     Writer,
 };
-use std::io;
 
 bitflags::bitflags! {
     // Storage classes
@@ -30,6 +30,34 @@ bitflags::bitflags! {
         const Q_Unaligned = 1 << 4;
         const Q_Restrict = 1 << 5;
         const Q_Pointer64 = 1 << 6;
+    }
+}
+
+impl From<SingleQualifier> for Qualifiers {
+    fn from(value: SingleQualifier) -> Self {
+        match value {
+            SingleQualifier::Const => Self::Q_Const,
+            SingleQualifier::Volatile => Self::Q_Volatile,
+            SingleQualifier::Restrict => Self::Q_Restrict,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum SingleQualifier {
+    Const,
+    Volatile,
+    Restrict,
+}
+
+impl SingleQualifier {
+    fn output_single_qualifier<W: Writer>(self, ob: &mut W) -> Result<()> {
+        let qualifier = match self {
+            Self::Const => "const",
+            Self::Volatile => "volatile",
+            Self::Restrict => "__restrict",
+        };
+        safe_write!(ob, "{qualifier}")
     }
 }
 
@@ -62,49 +90,35 @@ impl Qualifiers {
     ) -> Result<()> {
         if self != Self::Q_None {
             let len_before = ob.len();
-            let space_before = self.output_if_present(ob, Self::Q_Const, space_before)?;
-            let space_before = self.output_if_present(ob, Self::Q_Volatile, space_before)?;
-            self.output_if_present(ob, Self::Q_Restrict, space_before)?;
+            let space_before = self.output_if_present(ob, SingleQualifier::Const, space_before)?;
+            let space_before =
+                self.output_if_present(ob, SingleQualifier::Volatile, space_before)?;
+            self.output_if_present(ob, SingleQualifier::Restrict, space_before)?;
             let len_after = ob.len();
             if space_after && len_after > len_before {
-                write!(ob, " ")?;
+                safe_write!(ob, " ")?;
             }
         }
 
         Ok(())
     }
 
-    pub(super) fn output_if_present<W: Writer>(
+    fn output_if_present<W: Writer>(
         self,
         ob: &mut W,
-        mask: Qualifiers,
+        mask: SingleQualifier,
         needs_space: bool,
     ) -> Result<bool> {
-        if !self.contains(mask) {
+        if !self.contains(mask.into()) {
             return Ok(needs_space);
         }
 
         if needs_space {
-            write!(ob, " ")?;
+            safe_write!(ob, " ")?;
         }
 
         mask.output_single_qualifier(ob)?;
         Ok(true)
-    }
-
-    pub(super) fn output_single_qualifier<W: Writer>(self, ob: &mut W) -> Result<()> {
-        let qualifier = match self {
-            Self::Q_Const => "const",
-            Self::Q_Volatile => "volatile",
-            Self::Q_Restrict => "__restrict",
-            _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    format!("failed to output unsupported qualifier(s): {}", self.bits()),
-                ))
-            }
-        };
-        write!(ob, "{qualifier}")
     }
 }
 
@@ -160,7 +174,7 @@ impl CallingConv {
             CallingConv::Swift => "__attribute__((__swiftcall__)) ",
             CallingConv::SwiftAsync => "__attribute__((__swiftasynccall__)) ",
         };
-        write!(ob, "{cc}")
+        safe_write!(ob, "{cc}")
     }
 }
 

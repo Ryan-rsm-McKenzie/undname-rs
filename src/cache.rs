@@ -53,6 +53,8 @@ use crate::{
         VcallThunkIdentifierNode,
     },
     Allocator,
+    Error,
+    Result,
 };
 use nonmax::NonMaxUsize;
 use std::marker::PhantomData;
@@ -303,17 +305,22 @@ impl<'alloc> NodeCache<'alloc> {
         &mut self,
         allocator: &'alloc Allocator,
         node: T,
-    ) -> NodeHandle<<T as NodeToResolver>::Resolver>
+    ) -> Result<NodeHandle<<T as NodeToResolver>::Resolver>>
     where
         T: NodeToResolver + 'alloc,
         &'alloc mut T: Into<NodeStorage<'alloc>>,
     {
-        let node = allocator.allocate(node);
-        self.storage.push(node.into());
-        let id = self.storage.len() - 1;
-        // SAFETY: we would oom before allocating usize::MAX nodes
-        let id = unsafe { NonMaxUsize::new_unchecked(id) };
-        NodeHandle::new(id)
+        if self.storage.len() > 1_000 {
+            // a mangled string that has over 1,000 nodes? bail
+            Err(Error::MaliciousInput)
+        } else {
+            let node = allocator.allocate(node);
+            self.storage.push(node.into());
+            let id = self.storage.len() - 1;
+            // SAFETY: we would oom before allocating usize::MAX nodes
+            let id = unsafe { NonMaxUsize::new_unchecked(id) };
+            Ok(NodeHandle::new(id))
+        }
     }
 }
 

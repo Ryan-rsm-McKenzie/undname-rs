@@ -49,7 +49,9 @@ mod intermediate;
 
 use crate::{
     cache::NodeCache,
+    safe_write,
     OutputFlags,
+    Result,
     Writer,
 };
 pub(crate) use derived::{
@@ -108,17 +110,12 @@ pub(crate) use intermediate::{
     SymbolNode,
     TypeNode,
 };
-use std::{
-    io,
-    mem,
-};
-
-type Result<T> = std::result::Result<T, io::Error>;
+use std::mem;
 
 fn output_space_if_necessary<W: Writer>(ob: &mut W) -> Result<()> {
     if let Some(c) = ob.last() {
         if c.is_ascii_alphanumeric() || *c == b'>' {
-            write!(ob, " ")?;
+            safe_write!(ob, " ")?;
         }
     }
     Ok(())

@@ -75,6 +75,21 @@ impl<'bump> Writer for BumpVec<'bump, u8> {
     }
 }
 
+#[macro_export]
+macro_rules! safe_write {
+	($dst:expr, $($arg:tt)*) => {
+		if $dst.len() > (1 << 20) {
+			// a demangled string that's over a mb in length? bail
+			Err(crate::Error::MaliciousInput)
+		} else {
+			match write!($dst, $($arg)*) {
+				Ok(ok) => Ok(ok),
+				Err(err) => Err(crate::Error::from(err)),
+			}
+		}
+	};
+}
+
 #[derive(Default)]
 struct Allocator {
     alloc: Bump,
@@ -233,6 +248,9 @@ pub enum Error {
 
     #[error(transparent)]
     Io(#[from] io::Error),
+
+    #[error("input string was likely malicious and would have triggered an out of memory panic")]
+    MaliciousInput,
 
     #[error("tried to save too many backrefs")]
     TooManyBackRefs,
