@@ -3,7 +3,7 @@
 
 The latest development docs are available at: <https://ryan-rsm-mckenzie.github.io/undname-rs/undname/index.html>
 
-The stable release docs are available at:
+The stable release docs are available at: <https://docs.rs/undname/latest/undname/>
 
 Changelogs are available at: <https://github.com/Ryan-rsm-McKenzie/undname-rs/releases>
 
