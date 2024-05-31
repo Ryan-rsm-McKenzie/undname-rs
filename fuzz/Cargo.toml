@@ -1,0 +1,21 @@
+[package]
+edition = "2021"
+name = "undname-fuzz"
+publish = false
+version = "0.0.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.undname]
+path = ".."
+
+[[bin]]
+bench = false
+doc = false
+name = "basic"
+path = "fuzz_targets/basic.rs"
+test = false
