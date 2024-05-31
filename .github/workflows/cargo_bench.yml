@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  cargo-deny:
+  cargo-bench:
     runs-on: ubuntu-latest
 
     steps:

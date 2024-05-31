@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  deploy_docs:
+  deploy-docs:
     runs-on: ubuntu-latest
 
     steps:
