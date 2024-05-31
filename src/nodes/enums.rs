@@ -14,12 +14,9 @@
 
 use crate::{
     nodes::Result,
-    OutputBuffer,
+    Writer,
 };
-use std::io::{
-    self,
-    Write as _,
-};
+use std::io;
 
 bitflags::bitflags! {
     // Storage classes
@@ -57,9 +54,9 @@ impl Qualifiers {
         self.contains(Self::Q_Restrict)
     }
 
-    pub(super) fn output(
+    pub(super) fn output<W: Writer>(
         self,
-        ob: &mut OutputBuffer,
+        ob: &mut W,
         space_before: bool,
         space_after: bool,
     ) -> Result<()> {
@@ -77,9 +74,9 @@ impl Qualifiers {
         Ok(())
     }
 
-    pub(super) fn output_if_present(
+    pub(super) fn output_if_present<W: Writer>(
         self,
-        ob: &mut OutputBuffer,
+        ob: &mut W,
         mask: Qualifiers,
         needs_space: bool,
     ) -> Result<bool> {
@@ -95,7 +92,7 @@ impl Qualifiers {
         Ok(true)
     }
 
-    pub(super) fn output_single_qualifier(self, ob: &mut OutputBuffer) -> Result<()> {
+    pub(super) fn output_single_qualifier<W: Writer>(self, ob: &mut W) -> Result<()> {
         let qualifier = match self {
             Self::Q_Const => "const",
             Self::Q_Volatile => "volatile",
@@ -149,7 +146,7 @@ pub(crate) enum CallingConv {
 }
 
 impl CallingConv {
-    pub(super) fn output(self, ob: &mut OutputBuffer) -> Result<()> {
+    pub(super) fn output<W: Writer>(self, ob: &mut W) -> Result<()> {
         super::output_space_if_necessary(ob)?;
         let cc = match self {
             CallingConv::Cdecl => "__cdecl",

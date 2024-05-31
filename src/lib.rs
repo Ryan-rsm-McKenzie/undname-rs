@@ -35,14 +35,44 @@ pub use bstr::{
     ByteSlice,
     ByteVec,
 };
-use bumpalo::Bump;
+use bumpalo::{
+    collections::Vec as BumpVec,
+    Bump,
+};
 use std::{
-    io,
+    io::{
+        self,
+        Write,
+    },
     mem,
 };
 
 type OutputFlags = Flags;
-type OutputBuffer = Vec<u8>;
+
+trait Writer: Write {
+    fn last(&self) -> Option<&u8>;
+    fn len(&self) -> usize;
+}
+
+impl Writer for Vec<u8> {
+    fn last(&self) -> Option<&u8> {
+        self.as_slice().last()
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<'bump> Writer for BumpVec<'bump, u8> {
+    fn last(&self) -> Option<&u8> {
+        self.as_slice().last()
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
 
 #[derive(Default)]
 struct Allocator {
@@ -61,6 +91,10 @@ impl Allocator {
     {
         debug_assert!(!mem::needs_drop::<T>());
         self.alloc.alloc_slice_copy(src)
+    }
+
+    pub(crate) fn new_vec<'this>(&'this self) -> BumpVec<'this, u8> {
+        BumpVec::new_in(&self.alloc)
     }
 }
 

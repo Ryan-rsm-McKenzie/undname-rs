@@ -8,7 +8,7 @@ version = "0.1.0"
 arrayvec = "0.7.4"
 bitflags = "2.5.0"
 bstr = "1.9.1"
-bumpalo = "3.16.0"
+bumpalo = {version = "3.16.0", features = ["collections", "std"]}
 nonmax = "0.5.5"
 smallvec = "1.13.2"
 thiserror = "1.0.61"

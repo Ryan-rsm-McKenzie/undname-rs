@@ -89,9 +89,9 @@ use crate::{
     },
     Allocator,
     Error,
-    OutputBuffer,
     OutputFlags,
     Result,
+    Writer,
 };
 use arrayvec::ArrayVec;
 use bstr::{
@@ -169,7 +169,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         let ast = self
             .do_parse(allocator, &mut mangled_name)?
             .resolve(&self.cache);
-        let mut ob: OutputBuffer = mem::take(result).into();
+        let mut ob: Vec<u8> = mem::take(result).into();
         ast.output(&self.cache, &mut ob, flags)?;
         *result = ob.into();
         Ok(())
@@ -1058,11 +1058,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
     ) -> Result<()> {
         // Render this class template name into a string buffer so that we can
         // memorize it for the purpose of back-referencing.
-        let mut ob = OutputBuffer::new();
+        let mut ob = allocator.new_vec();
         identifier
             .resolve(&self.cache)
             .output(&self.cache, &mut ob, OutputFlags::default())?;
-        self.memorize_string(allocator, allocator.allocate_slice(&ob).into())
+        self.memorize_string(allocator, ob.into_bump_slice().into())
     }
 
     // Parses a type name in the form of A@B@C@@ which represents C::B::A.
@@ -1849,12 +1849,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         let scope = self.do_parse(allocator, mangled_name)?.resolve(&self.cache);
 
         // Render the parent symbol's name into a buffer.
-        let mut ob = OutputBuffer::new();
+        let mut ob = allocator.new_vec();
         write!(ob, "`")?;
         scope.output(&self.cache, &mut ob, OutputFlags::default())?;
         write!(ob, "'::`{number}'")?;
 
-        identifier.name = allocator.allocate_slice(&ob).into();
+        identifier.name = ob.into_bump_slice().into();
         Ok(self.cache.intern(allocator, identifier))
     }
 
@@ -1894,7 +1894,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
             return Err(Error::InvalidStringLiteral);
         }
 
-        let mut ob = OutputBuffer::new();
+        let mut ob = allocator.new_vec();
         let (char, is_truncated) = if is_wchar_t {
             let char = CharKind::Wchar;
             let is_truncated = string_byte_len > 64;
@@ -1949,7 +1949,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
 
         let result = EncodedStringLiteralNode {
             name: None,
-            decoded_string: allocator.allocate_slice(&ob).into(),
+            decoded_string: ob.into_bump_slice().into(),
             is_truncated,
             char,
         };
@@ -2312,7 +2312,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         }
     }
 
-    fn output_escaped_char(ob: &mut OutputBuffer, c: u32) -> Result<()> {
+    fn output_escaped_char<W: Writer>(ob: &mut W, c: u32) -> Result<()> {
         match c {
             0x00 => write!(ob, "\\0"),  // nul
             0x27 => write!(ob, "\\\'"), // single quote

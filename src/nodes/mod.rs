@@ -49,8 +49,8 @@ mod intermediate;
 
 use crate::{
     cache::NodeCache,
-    OutputBuffer,
     OutputFlags,
+    Writer,
 };
 pub(crate) use derived::{
     ArrayTypeNode,
@@ -109,16 +109,13 @@ pub(crate) use intermediate::{
     TypeNode,
 };
 use std::{
-    io::{
-        self,
-        Write as _,
-    },
+    io,
     mem,
 };
 
 type Result<T> = std::result::Result<T, io::Error>;
 
-fn output_space_if_necessary(ob: &mut Vec<u8>) -> Result<()> {
+fn output_space_if_necessary<W: Writer>(ob: &mut W) -> Result<()> {
     if let Some(c) = ob.last() {
         if c.is_ascii_alphanumeric() || *c == b'>' {
             write!(ob, " ")?;
@@ -128,14 +125,14 @@ fn output_space_if_necessary(ob: &mut Vec<u8>) -> Result<()> {
 }
 
 pub(crate) trait WriteableNode {
-    fn output(&self, cache: &NodeCache, ob: &mut OutputBuffer, flags: OutputFlags) -> Result<()>;
+    fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()>;
 }
 
 trait WriteableTypeNode {
-    fn output_pair(
+    fn output_pair<W: Writer>(
         &self,
         cache: &NodeCache,
-        ob: &mut OutputBuffer,
+        ob: &mut W,
         flags: OutputFlags,
     ) -> Result<()> {
         self.output_pre(cache, ob, flags)?;
@@ -143,17 +140,17 @@ trait WriteableTypeNode {
         Ok(())
     }
 
-    fn output_pre(
+    fn output_pre<W: Writer>(
         &self,
         cache: &NodeCache,
-        ob: &mut OutputBuffer,
+        ob: &mut W,
         flags: OutputFlags,
     ) -> Result<()>;
 
-    fn output_post(
+    fn output_post<W: Writer>(
         &self,
         cache: &NodeCache,
-        ob: &mut OutputBuffer,
+        ob: &mut W,
         flags: OutputFlags,
     ) -> Result<()>;
 }
