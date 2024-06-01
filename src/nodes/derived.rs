@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::{
+    alloc,
     cache::{
         NodeArray,
         NodeCache,
@@ -43,12 +44,12 @@ use crate::{
         WriteableTypeNode,
     },
     safe_write,
-    Allocator,
     OutputFlags,
     Writer,
 };
 use arrayvec::ArrayVec;
 use bstr::BStr;
+use bumpalo::Bump;
 use std::{
     mem::ManuallyDrop,
     ops::{
@@ -925,31 +926,25 @@ impl QualifiedNameNode {
     }
 
     pub(crate) fn synthesize_from_id<'alloc>(
-        allocator: &'alloc Allocator,
+        allocator: &'alloc Bump,
         cache: &mut NodeCache<'alloc>,
         identifier: NodeHandle<IIdentifierNode>,
     ) -> Result<Self> {
-        let components = cache.intern(
-            allocator,
-            NodeArrayNode {
-                nodes: allocator.allocate_slice(&[identifier.into()]),
-            },
-        )?;
+        let components = cache.intern(NodeArrayNode {
+            nodes: alloc::allocate_slice(allocator, &[identifier.into()]),
+        })?;
         Ok(Self { components })
     }
 
     pub(crate) fn synthesize_from_name<'alloc, 'string: 'alloc>(
-        allocator: &'alloc Allocator,
+        allocator: &'alloc Bump,
         cache: &mut NodeCache<'alloc>,
         name: &'string BStr,
     ) -> Result<Self> {
-        let id = cache.intern(
-            allocator,
-            NamedIdentifierNode {
-                name,
-                ..Default::default()
-            },
-        )?;
+        let id = cache.intern(NamedIdentifierNode {
+            name,
+            ..Default::default()
+        })?;
         Self::synthesize_from_id(allocator, cache, id.into())
     }
 }
@@ -1085,14 +1080,14 @@ pub(crate) struct VariableSymbolNode {
 
 impl VariableSymbolNode {
     pub(crate) fn synthesize<'alloc, 'string: 'alloc>(
-        allocator: &'alloc Allocator,
+        allocator: &'alloc Bump,
         cache: &mut NodeCache<'alloc>,
         r#type: NodeHandle<ITypeNode>,
         variable_name: &'string BStr,
     ) -> Result<Self> {
         let name = {
             let x = QualifiedNameNode::synthesize_from_name(allocator, cache, variable_name)?;
-            cache.intern(allocator, x)?
+            cache.intern(x)?
         };
 
         Ok(Self {

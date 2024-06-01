@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::{
+    alloc,
     nodes::{
         ArrayTypeNode,
         ConversionOperatorIdentifierNode,
@@ -52,9 +53,12 @@ use crate::{
         VariableSymbolNode,
         VcallThunkIdentifierNode,
     },
-    Allocator,
     Error,
     Result,
+};
+use bumpalo::{
+    collections::Vec as BumpVec,
+    Bump,
 };
 use nonmax::NonMaxUsize;
 use std::marker::PhantomData;
@@ -295,22 +299,27 @@ impl_from_storage_interface!(
     ]
 );
 
-#[derive(Default)]
 pub(crate) struct NodeCache<'alloc> {
-    storage: Vec<NodeStorage<'alloc>>,
+    storage: BumpVec<'alloc, NodeStorage<'alloc>>,
 }
 
 impl<'alloc> NodeCache<'alloc> {
+    pub(crate) fn new(allocator: &'alloc Bump) -> Self {
+        Self {
+            storage: alloc::new_vec(allocator),
+        }
+    }
+
     pub(crate) fn intern<T>(
         &mut self,
-        allocator: &'alloc Allocator,
         node: T,
     ) -> Result<NodeHandle<<T as NodeToResolver>::Resolver>>
     where
         T: NodeToResolver + 'alloc,
         &'alloc mut T: Into<NodeStorage<'alloc>>,
     {
-        let node = allocator.allocate(node);
+        let allocator = self.storage.bump();
+        let node = alloc::allocate(allocator, node);
         self.storage.push(node.into());
         if self.storage.len() > (1 << 11) {
             // a mangled string with this many nodes is probably malformed... bail

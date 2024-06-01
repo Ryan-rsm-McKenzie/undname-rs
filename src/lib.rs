@@ -21,6 +21,7 @@
     clippy::too_many_lines
 )]
 
+mod alloc;
 mod cache;
 mod demangler;
 mod extensions;
@@ -40,12 +41,9 @@ use bumpalo::{
     collections::Vec as BumpVec,
     Bump,
 };
-use std::{
-    io::{
-        self,
-        Write,
-    },
-    mem,
+use std::io::{
+    self,
+    Write,
 };
 
 type OutputFlags = Flags;
@@ -88,30 +86,6 @@ macro_rules! safe_write {
 			}
 		}
 	};
-}
-
-#[derive(Default)]
-struct Allocator {
-    alloc: Bump,
-}
-
-impl Allocator {
-    pub(crate) fn allocate<T>(&self, val: T) -> &mut T {
-        debug_assert!(!mem::needs_drop::<T>());
-        self.alloc.alloc(val)
-    }
-
-    pub(crate) fn allocate_slice<'this, T>(&'this self, src: &[T]) -> &'this [T]
-    where
-        T: Copy,
-    {
-        debug_assert!(!mem::needs_drop::<T>());
-        self.alloc.alloc_slice_copy(src)
-    }
-
-    pub(crate) fn new_vec(&self) -> BumpVec<'_, u8> {
-        BumpVec::new_in(&self.alloc)
-    }
 }
 
 #[non_exhaustive]
@@ -376,7 +350,7 @@ pub fn demangle(mangled_name: &BStr, flags: Flags) -> Result<BString> {
 
 /// See [`demangle`] for more info.
 pub fn demangle_into(mangled_name: &BStr, flags: Flags, result: &mut BString) -> Result<()> {
-    let alloc = Allocator::default();
+    let alloc = Bump::default();
     let d = Demangler::new(&alloc);
     d.parse_into(mangled_name, flags, result)
 }
