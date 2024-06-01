@@ -310,12 +310,12 @@ impl<'alloc> NodeCache<'alloc> {
         T: NodeToResolver + 'alloc,
         &'alloc mut T: Into<NodeStorage<'alloc>>,
     {
-        if self.storage.len() > 1_000 {
-            // a mangled string that has over 1,000 nodes? bail
+        let node = allocator.allocate(node);
+        self.storage.push(node.into());
+        if self.storage.len() > (1 << 11) {
+            // a mangled string with this many nodes is probably malformed... bail
             Err(Error::MaliciousInput)
         } else {
-            let node = allocator.allocate(node);
-            self.storage.push(node.into());
             let id = self.storage.len() - 1;
             // SAFETY: we would oom before allocating usize::MAX nodes
             let id = unsafe { NonMaxUsize::new_unchecked(id) };
