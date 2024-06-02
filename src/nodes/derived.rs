@@ -468,7 +468,6 @@ impl WriteableTypeNode for PointerTypeNode {
             TypeNode::ArrayType(_) => safe_write!(ob, "(")?,
             TypeNode::Signature(sig) => {
                 safe_write!(ob, "(")?;
-                println!("{flags:?}");
                 if !flags.no_calling_convention() && !flags.no_ms_keywords() {
                     if let Some(call_convention) = sig.as_node().call_convention {
                         call_convention.output(ob, flags)?;
