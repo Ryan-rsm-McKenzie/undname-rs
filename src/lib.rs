@@ -250,6 +250,9 @@ bitflags::bitflags! {
         /// ```
         const NO_CALLING_CONVENTION = 1 << 0;
 
+        /// See also [`NO_CALLING_CONVENTION`](Self::NO_CALLING_CONVENTION).
+        const NO_ALLOCATION_LANGUAGE = Self::NO_CALLING_CONVENTION.bits();
+
         /// Suppress tag specifiers (`class`/`struct`/`union`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
