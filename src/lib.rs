@@ -336,6 +336,7 @@ bitflags::bitflags! {
         /// ```
         const NO_LEADING_UNDERSCORES = 1 << 7;
 
+        /// Suppress Microsoft keywords (`__restrict`/`__unaligned`/`__cdecl`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
         /// let input = b"?f@@YAXPEIFAH@Z".into();
