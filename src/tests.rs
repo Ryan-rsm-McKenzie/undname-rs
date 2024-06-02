@@ -3258,29 +3258,73 @@ fn test_fuzzed() {
 }
 
 #[test]
-fn test_options_2() {
-    let test_option = |mangled_name: &[u8], demangled_name: &[u8], flags: Flags| {
-        do_test(mangled_name, demangled_name, false, flags);
+fn test_no_this_type() {
+    let test_option = |mangled_name: &[u8], demangled_name: &[u8]| {
+        do_test(mangled_name, demangled_name, false, Flags::NO_THISTYPE);
     };
 
     test_option(
         b"?world@hello@@QEBAXXZ",
         b"public: void __cdecl hello::world(void)",
-        Flags::NO_THISTYPE,
     );
     test_option(
         b"?world@hello@@QECAXXZ",
         b"public: void __cdecl hello::world(void)",
-        Flags::NO_THISTYPE,
     );
     test_option(
         b"?world@hello@@QEIAAXXZ",
         b"public: void __cdecl hello::world(void)",
-        Flags::NO_THISTYPE,
     );
     test_option(
         b"?world@hello@@QEFAAXXZ",
         b"public: void __cdecl hello::world(void)",
-        Flags::NO_THISTYPE,
+    );
+    test_option(
+        b"?a@FTypeWithQuals@@3U?$S@$$A8@@BAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::a",
+    );
+    test_option(
+        b"?b@FTypeWithQuals@@3U?$S@$$A8@@CAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::b",
+    );
+    test_option(
+        b"?c@FTypeWithQuals@@3U?$S@$$A8@@IAAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::c",
+    );
+    test_option(
+        b"?d@FTypeWithQuals@@3U?$S@$$A8@@GBAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::d",
+    );
+    test_option(
+        b"?e@FTypeWithQuals@@3U?$S@$$A8@@GCAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::e",
+    );
+    test_option(
+        b"?f@FTypeWithQuals@@3U?$S@$$A8@@IGAAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::f",
+    );
+    test_option(
+        b"?g@FTypeWithQuals@@3U?$S@$$A8@@HBAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::g",
+    );
+    test_option(
+        b"?h@FTypeWithQuals@@3U?$S@$$A8@@HCAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::h",
+    );
+    test_option(
+        b"?i@FTypeWithQuals@@3U?$S@$$A8@@IHAAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::i",
+    );
+    test_option(
+        b"?j@FTypeWithQuals@@3U?$S@$$A6AHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::j",
+    );
+    test_option(
+        b"?k@FTypeWithQuals@@3U?$S@$$A8@@GAAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::k",
+    );
+    test_option(
+        b"?l@FTypeWithQuals@@3U?$S@$$A8@@HAAHXZ@1@A",
+        b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::l",
     );
 }
