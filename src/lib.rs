@@ -261,7 +261,7 @@ bitflags::bitflags! {
         /// ```
         const NO_TAG_SPECIFIER = 1 << 1;
 
-        /// See also [`NO_TAG_SPECIFIER`].
+        /// See also [`NO_TAG_SPECIFIER`](Self::NO_TAG_SPECIFIER).
         const NO_ECSU = Self::NO_TAG_SPECIFIER.bits();
 
         /// Suppress access specifiers (`private`/`public`/`protected`) from being included in the output.
@@ -275,7 +275,7 @@ bitflags::bitflags! {
         /// ```
         const NO_ACCESS_SPECIFIER = 1 << 2;
 
-        /// See also [`NO_ACCESS_SPECIFIER`].
+        /// See also [`NO_ACCESS_SPECIFIER`](Self::NO_ACCESS_SPECIFIER).
         const NO_ACCESS_SPECIFIERS = Self::NO_ACCESS_SPECIFIER.bits();
 
         /// Suppress member types (`static`/`virtual`/`extern "C"`) from being included in the output.
@@ -300,7 +300,7 @@ bitflags::bitflags! {
         /// ```
         const NO_RETURN_TYPE = 1 << 4;
 
-        /// See also [`NO_RETURN_TYPE`].
+        /// See also [`NO_RETURN_TYPE`](Self::NO_RETURN_TYPE).
         const NO_FUNCTION_RETURNS = Self::NO_RETURN_TYPE.bits();
 
         /// Suppress variable types from being included in the output.
