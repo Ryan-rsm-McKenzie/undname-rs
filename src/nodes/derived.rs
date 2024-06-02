@@ -204,7 +204,7 @@ impl WriteableTypeNode for FunctionSignatureNode {
             }
         }
 
-        if !flags.no_calling_convention() {
+        if !flags.no_calling_convention() && !flags.no_ms_keywords() {
             if let Some(call_convention) = self.call_convention {
                 call_convention.output(ob, flags)?;
             }
@@ -243,18 +243,20 @@ impl WriteableTypeNode for FunctionSignatureNode {
             if self.quals.is_volatile() {
                 safe_write!(ob, " volatile")?;
             }
-            if self.quals.is_restrict() {
-                if flags.no_leading_underscores() {
-                    safe_write!(ob, " restrict")?;
-                } else {
-                    safe_write!(ob, " __restrict")?;
+            if !flags.no_ms_keywords() {
+                if self.quals.is_restrict() {
+                    if flags.no_leading_underscores() {
+                        safe_write!(ob, " restrict")?;
+                    } else {
+                        safe_write!(ob, " __restrict")?;
+                    }
                 }
-            }
-            if self.quals.is_unaligned() {
-                if flags.no_leading_underscores() {
-                    safe_write!(ob, " unaligned")?;
-                } else {
-                    safe_write!(ob, " __unaligned")?;
+                if self.quals.is_unaligned() {
+                    if flags.no_leading_underscores() {
+                        safe_write!(ob, " unaligned")?;
+                    } else {
+                        safe_write!(ob, " __unaligned")?;
+                    }
                 }
             }
         }
@@ -392,7 +394,7 @@ impl WriteableTypeNode for PointerTypeNode {
 
         super::output_space_if_necessary(ob)?;
 
-        if self.quals.is_unaligned() {
+        if !flags.no_ms_keywords() && self.quals.is_unaligned() {
             if flags.no_leading_underscores() {
                 safe_write!(ob, "unaligned ")?;
             } else {
@@ -404,7 +406,7 @@ impl WriteableTypeNode for PointerTypeNode {
             TypeNode::ArrayType(_) => safe_write!(ob, "(")?,
             TypeNode::Signature(sig) => {
                 safe_write!(ob, "(")?;
-                if !flags.no_calling_convention() {
+                if !flags.no_calling_convention() && !flags.no_ms_keywords() {
                     if let Some(call_convention) = sig.as_node().call_convention {
                         call_convention.output(ob, flags)?;
                         safe_write!(ob, " ")?;

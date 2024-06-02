@@ -57,10 +57,14 @@ impl SingleQualifier {
             Self::Const => "const",
             Self::Volatile => "volatile",
             Self::Restrict => {
-                if flags.no_leading_underscores() {
-                    "restrict"
+                if flags.no_ms_keywords() {
+                    return Ok(());
                 } else {
-                    "__restrict"
+                    if flags.no_leading_underscores() {
+                        "restrict"
+                    } else {
+                        "__restrict"
+                    }
                 }
             }
         };

@@ -43,6 +43,9 @@ struct Cli {
 
     #[arg(long)]
     no_leading_underscores: bool,
+
+    #[arg(long)]
+    no_ms_keywords: bool,
 }
 
 fn main() {
@@ -72,6 +75,9 @@ fn main() {
         }
         if cli.no_leading_underscores {
             flags |= Flags::NO_LEADING_UNDERSCORES;
+        }
+        if cli.no_ms_keywords {
+            flags |= Flags::NO_MS_KEYWORDS;
         }
         flags
     };

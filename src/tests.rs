@@ -3359,3 +3359,20 @@ fn test_no_leading_underscores() {
     );
     test_option(b"?vector_func@@YQXXZ", b"void vectorcall vector_func(void)");
 }
+
+#[test]
+fn test_no_ms_keywords() {
+    let test_option = |mangled_name: &[u8], demangled_name: &[u8]| {
+        do_test(mangled_name, demangled_name, false, Flags::NO_MS_KEYWORDS);
+    };
+
+    test_option(
+        b"?unaligned_foo5@@YAXPIFAH@Z",
+        b"void unaligned_foo5(int *)",
+    );
+    test_option(b"?beta@@YI_N_J_W@Z", b"bool beta(__int64, wchar_t)");
+    test_option(b"?f5@@YCXXZ", b"void f5(void)");
+    test_option(b"?j@@3P6GHCE@ZA", b"int (*j)(signed char, unsigned char)");
+    test_option(b"?mbb@S@@QAEX_N0@Z", b"public: void S::mbb(bool, bool)");
+    test_option(b"?vector_func@@YQXXZ", b"void vector_func(void)");
+}

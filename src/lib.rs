@@ -238,7 +238,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 bitflags::bitflags! {
     /// `Flags` control how types are printed during demangling. See each flag for more info on what exactly they do.
     #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-    pub struct Flags: u8 {
+    pub struct Flags: u16 {
         /// Suppress calling conventions (`__cdecl`/`__fastcall`/`__thiscall`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
@@ -335,6 +335,16 @@ bitflags::bitflags! {
         /// assert_eq!(with_flag,    b"void cdecl foo_piad(char *restrict)"[..]);
         /// ```
         const NO_LEADING_UNDERSCORES = 1 << 7;
+
+        /// ```rust
+        /// use undname::Flags;
+        /// let input = b"?f@@YAXPEIFAH@Z".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NO_MS_KEYWORDS).unwrap();
+        /// assert_eq!(without_flag, b"void __cdecl f(int __unaligned *__restrict)"[..]);
+        /// assert_eq!(with_flag,    b"void f(int *)"[..]);
+        /// ```
+        const NO_MS_KEYWORDS = 1 << 8;
     }
 }
 
@@ -377,6 +387,11 @@ impl Flags {
     #[must_use]
     fn no_leading_underscores(self) -> bool {
         self.contains(Self::NO_LEADING_UNDERSCORES)
+    }
+
+    #[must_use]
+    fn no_ms_keywords(self) -> bool {
+        self.contains(Self::NO_MS_KEYWORDS)
     }
 }
 
