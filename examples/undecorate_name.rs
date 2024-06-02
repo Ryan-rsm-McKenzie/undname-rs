@@ -37,6 +37,9 @@ struct Cli {
 
     #[arg(long)]
     no_variable_type: bool,
+
+    #[arg(long)]
+    no_this_type: bool,
 }
 
 fn main() {
@@ -60,6 +63,9 @@ fn main() {
         }
         if cli.no_variable_type {
             flags |= Flags::NO_VARIABLE_TYPE;
+        }
+        if cli.no_this_type {
+            flags |= Flags::NO_THISTYPE;
         }
         flags
     };

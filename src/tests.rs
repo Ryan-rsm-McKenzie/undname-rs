@@ -3256,3 +3256,31 @@ fn test_fuzzed() {
         Flags::default(),
     );
 }
+
+#[test]
+fn test_options_2() {
+    let test_option = |mangled_name: &[u8], demangled_name: &[u8], flags: Flags| {
+        do_test(mangled_name, demangled_name, false, flags);
+    };
+
+    test_option(
+        b"?world@hello@@QEBAXXZ",
+        b"public: void __cdecl hello::world(void)",
+        Flags::NO_THISTYPE,
+    );
+    test_option(
+        b"?world@hello@@QECAXXZ",
+        b"public: void __cdecl hello::world(void)",
+        Flags::NO_THISTYPE,
+    );
+    test_option(
+        b"?world@hello@@QEIAAXXZ",
+        b"public: void __cdecl hello::world(void)",
+        Flags::NO_THISTYPE,
+    );
+    test_option(
+        b"?world@hello@@QEFAAXXZ",
+        b"public: void __cdecl hello::world(void)",
+        Flags::NO_THISTYPE,
+    );
+}

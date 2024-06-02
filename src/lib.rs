@@ -312,6 +312,17 @@ bitflags::bitflags! {
         /// assert_eq!(with_flag,    b"x"[..]);
         /// ```
         const NO_VARIABLE_TYPE = 1 << 5;
+
+        /// Supress modifiers on the `this` type (`const`/`volatile`/`__restrict`) from being included in the output.
+        /// ```rust
+        /// use undname::Flags;
+        /// let input = b"?world@hello@@QEDAXXZ".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NO_THISTYPE).unwrap();
+        /// assert_eq!(without_flag, b"void __cdecl hello::world(void) const volatile"[..]);
+        /// assert_eq!(with_flag,    b"void __cdecl hello::world(void)"[..]);
+        /// ```
+        const NO_THISTYPE = 1 << 6;
     }
 }
 
@@ -344,6 +355,11 @@ impl Flags {
     #[must_use]
     fn no_variable_type(self) -> bool {
         self.contains(Self::NO_VARIABLE_TYPE)
+    }
+
+    #[must_use]
+    fn no_this_type(self) -> bool {
+        self.contains(Self::NO_THISTYPE)
     }
 }
 

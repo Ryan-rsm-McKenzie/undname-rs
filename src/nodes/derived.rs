@@ -236,17 +236,19 @@ impl WriteableTypeNode for FunctionSignatureNode {
             safe_write!(ob, ")")?;
         }
 
-        if self.quals.is_const() {
-            safe_write!(ob, " const")?;
-        }
-        if self.quals.is_volatile() {
-            safe_write!(ob, " volatile")?;
-        }
-        if self.quals.is_restrict() {
-            safe_write!(ob, " __restrict")?;
-        }
-        if self.quals.is_unaligned() {
-            safe_write!(ob, " __unaligned")?;
+        if !flags.no_this_type() {
+            if self.quals.is_const() {
+                safe_write!(ob, " const")?;
+            }
+            if self.quals.is_volatile() {
+                safe_write!(ob, " volatile")?;
+            }
+            if self.quals.is_restrict() {
+                safe_write!(ob, " __restrict")?;
+            }
+            if self.quals.is_unaligned() {
+                safe_write!(ob, " __unaligned")?;
+            }
         }
 
         if self.is_noexcept {
