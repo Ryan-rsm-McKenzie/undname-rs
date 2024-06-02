@@ -320,8 +320,8 @@ bitflags::bitflags! {
         /// let input = b"?world@hello@@QEDAXXZ".into();
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_THISTYPE).unwrap();
-        /// assert_eq!(without_flag, b"void __cdecl hello::world(void) const volatile"[..]);
-        /// assert_eq!(with_flag,    b"void __cdecl hello::world(void)"[..]);
+        /// assert_eq!(without_flag, b"public: void __cdecl hello::world(void) const volatile"[..]);
+        /// assert_eq!(with_flag,    b"public: void __cdecl hello::world(void)"[..]);
         /// ```
         const NO_THISTYPE = 1 << 6;
     }
