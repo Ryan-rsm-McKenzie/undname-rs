@@ -158,26 +158,27 @@ pub(crate) struct Demangler<'alloc> {
     allocator: &'alloc Bump,
     cache: NodeCache<'alloc>,
     backrefs: BackrefContext,
+    flags: OutputFlags,
 }
 
 impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
-    pub(crate) fn new(allocator: &'alloc Bump) -> Self {
+    pub(crate) fn new(allocator: &'alloc Bump, flags: OutputFlags) -> Self {
         Self {
             allocator,
             cache: NodeCache::new(allocator),
             backrefs: BackrefContext::default(),
+            flags,
         }
     }
 
     pub(crate) fn parse_into(
         mut self,
         mut mangled_name: &'string BStr,
-        flags: OutputFlags,
         result: &mut BString,
     ) -> Result<()> {
         let ast = self.do_parse(&mut mangled_name)?.resolve(&self.cache);
         let mut ob: Vec<u8> = mem::take(result).into();
-        ast.output(&self.cache, &mut ob, flags)?;
+        ast.output(&self.cache, &mut ob, self.flags)?;
         *result = ob.into();
         Ok(())
     }
@@ -1014,7 +1015,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         let mut ob = alloc::new_vec(self.allocator);
         identifier
             .resolve(&self.cache)
-            .output(&self.cache, &mut ob, OutputFlags::default())?;
+            .output(&self.cache, &mut ob, self.flags)?;
         self.memorize_string(ob.into_bump_slice().into())
     }
 
@@ -1727,7 +1728,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc> {
         // Render the parent symbol's name into a buffer.
         let mut ob = alloc::new_vec(self.allocator);
         safe_write!(ob, "`")?;
-        scope.output(&self.cache, &mut ob, OutputFlags::default())?;
+        scope.output(&self.cache, &mut ob, self.flags)?;
         safe_write!(ob, "'::`{number}'")?;
 
         identifier.name = ob.into_bump_slice().into();
