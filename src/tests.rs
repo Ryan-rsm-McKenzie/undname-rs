@@ -1615,7 +1615,7 @@ fn test_operators() {
     test(b"??_EBase@@G3AEPAXI@Z", b"[thunk]: private: void * __thiscall Base::`vector deleting dtor'`adjustor{4}'(unsigned int)");
     test(
         b"??_F?$SomeTemplate@H@@QAEXXZ",
-        b"void __thiscall SomeTemplate<int>::`default ctor closure'(void)",
+        b"void __thiscall SomeTemplate<int>::`default constructor closure'(void)",
     );
     test(
         b"??_GBase@@UEAAPEAXI@Z",

@@ -797,7 +797,7 @@ impl WriteableNode for IntrinsicFunctionIdentifierNode {
                 IntrinsicFunctionKind::BitwiseXorEqual => "operator^=",
                 IntrinsicFunctionKind::VbaseDtor => "`vbase dtor'",
                 IntrinsicFunctionKind::VecDelDtor => "`vector deleting dtor'",
-                IntrinsicFunctionKind::DefaultCtorClosure => "`default ctor closure'",
+                IntrinsicFunctionKind::DefaultCtorClosure => "`default constructor closure'",
                 IntrinsicFunctionKind::ScalarDelDtor => "`scalar deleting dtor'",
                 IntrinsicFunctionKind::VecCtorIter => "`vector ctor iterator'",
                 IntrinsicFunctionKind::VecDtorIter => "`vector dtor iterator'",
