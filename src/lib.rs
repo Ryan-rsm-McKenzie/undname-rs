@@ -314,7 +314,7 @@ bitflags::bitflags! {
         /// ```
         const NO_VARIABLE_TYPE = 1 << 5;
 
-        /// Supress modifiers on the `this` type (`const`/`volatile`/`__restrict`) from being included in the output.
+        /// Suppress modifiers on the `this` type (`const`/`volatile`/`__restrict`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
         /// let input = b"?world@hello@@QEDAXXZ".into();
@@ -325,7 +325,7 @@ bitflags::bitflags! {
         /// ```
         const NO_THISTYPE = 1 << 6;
 
-        /// Supress leading underscores on Microsoft extended keywords (`__restrict`/`__cdecl`/`__fastcall`) from being included in the output.
+        /// Suppress leading underscores on Microsoft extended keywords (`__restrict`/`__cdecl`/`__fastcall`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
         /// let input = b"?foo_piad@@YAXPIAD@Z".into();
