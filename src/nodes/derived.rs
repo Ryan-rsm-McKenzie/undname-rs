@@ -444,10 +444,10 @@ impl WriteableTypeNode for PointerTypeNode {
             // It needs to go inside the parentheses.
             match sig {
                 SignatureNode::FunctionSignature(func) => {
-                    func.do_output_pre(cache, ob, flags, true)?
+                    func.do_output_pre(cache, ob, flags, true)?;
                 }
                 SignatureNode::ThunkSignature(thunk) => {
-                    thunk.do_output_pre(cache, ob, flags, true)?
+                    thunk.do_output_pre(cache, ob, flags, true)?;
                 }
             }
         } else {
