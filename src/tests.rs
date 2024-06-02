@@ -1721,7 +1721,16 @@ fn test_options() {
             false,
             Flags::NO_VARIABLE_TYPE,
         );
-        do_test(mangled_name, no_all, false, Flags::all());
+        do_test(
+            mangled_name,
+            no_all,
+            false,
+            Flags::NO_CALLING_CONVENTION
+                | Flags::NO_RETURN_TYPE
+                | Flags::NO_ACCESS_SPECIFIER
+                | Flags::NO_MEMBER_TYPE
+                | Flags::NO_VARIABLE_TYPE,
+        );
     };
 
     test_options(
@@ -3375,4 +3384,169 @@ fn test_no_ms_keywords() {
     test_option(b"?j@@3P6GHCE@ZA", b"int (*j)(signed char, unsigned char)");
     test_option(b"?mbb@S@@QAEX_N0@Z", b"public: void S::mbb(bool, bool)");
     test_option(b"?vector_func@@YQXXZ", b"void vector_func(void)");
+}
+
+#[test]
+fn test_name_only() {
+    let test_option = |mangled_name: &[u8], demangled_name: &[u8]| {
+        do_test(mangled_name, demangled_name, false, Flags::NAME_ONLY);
+    };
+
+    test_option(b"?foo@@YAXI@Z", b"foo");
+    test_option(b"?foobarbazqux@NB@PR13207@@YAXV?$Y@VX@NB@PR13207@@@12@V?$Y@V?$Y@VX@NB@PR13207@@@NB@PR13207@@@NA@2@V412@2V?$Y@V?$Y@V?$Y@VX@NB@PR13207@@@NB@PR13207@@@NB@PR13207@@@52@@Z", b"PR13207::NB::foobarbazqux");
+    test_option(b"??$f@US@@$1?g@1@QEAAXXZ@@YAXXZ", b"f<S, &S::g>");
+    test_option(b"?foo_sad@@YAXSEAD@Z", b"foo_sad");
+    test_option(
+        b"??$WrapFnPtr@$1?VoidFn@@YAXXZ@@YAXXZ",
+        b"WrapFnPtr<&VoidFn>",
+    );
+    test_option(b"??$CallMethod@UM@@$0A@@@YAXAAUM@@@Z", b"CallMethod<M, 0>");
+    test_option(b"?fun@@YAXU?$UUIDType1@Uuuid@@$1?_GUID_12345678_1234_1234_1234_1234567890ab@@3U__s_GUID@@B@@@Z", b"fun");
+    test_option(b"?abc_foo@@YA?AV?$A@DV?$B@D@N@@V?$C@D@2@@N@@XZ", b"abc_foo");
+    test_option(b"?f2@@YA?BUS@@XZ", b"f2");
+    test_option(b"??Hfoo@@QAEHH@Z", b"foo::operator+");
+    test_option(b"?M@?1??L@@YAHXZ@4HA", b"`L'::`2'::M");
+    test_option(b"?h2@@3QBHB", b"h2");
+    test_option(
+        b"??$Foo@H@?$BoolTemplate@$00@@QEAAXH@Z",
+        b"BoolTemplate<1>::Foo<int>",
+    );
+    test_option(
+        b"??0?$IntTemplate@$0L@@@QAE@XZ",
+        b"IntTemplate<11>::IntTemplate<11>",
+    );
+    test_option(b"??_V@YAXPEAXAEAVklass@@@Z", b"operator delete[]");
+    test_option(b"??1klass@@QEAA@XZ", b"klass::~klass");
+    test_option(
+        b"?d@FTypeWithQuals@@3U?$S@$$A8@@GBAHXZ@1@A",
+        b"FTypeWithQuals::d",
+    );
+    test_option(b"??_7Base@@6B@", b"Base::`vftable'");
+    test_option(b"?h1@@YAAIAHXZ", b"h1");
+    test_option(b"?x@ns@@3PEAV?$klass@HH@1@EA", b"ns::x");
+    test_option(
+        b"??2OverloadedNewDelete@@SAPAXI@Z",
+        b"OverloadedNewDelete::operator new",
+    );
+    test_option(b"?x@@YAXMH@Z", b"x");
+    test_option(
+        b"?f@UnnamedType@@YAXQAPAU<unnamed-type-T1>@S@1@@Z",
+        b"UnnamedType::f",
+    );
+    test_option(
+        b"?spam@NB@PR13207@@YAXV?$Y@VX@NA@PR13207@@@NA@2@@Z",
+        b"PR13207::NB::spam",
+    );
+    test_option(b"??__FFoo@@YAXXZ", b"`dynamic atexit destructor for 'Foo''");
+    test_option(b"?delta@@YAXQAHABJ@Z", b"delta");
+    test_option(
+        b"?foo@NC@PR13207@@YAXV?$Y@VX@NB@PR13207@@@12@@Z",
+        b"PR13207::NC::foo",
+    );
+    test_option(
+        b"?lambda@?1??define_lambda@@YAHXZ@4V<lambda_1>@?0??1@YAHXZ@A",
+        b"`define_lambda'::`2'::lambda",
+    );
+    test_option(b"?X@?$C@H@C@0@2HB", b"X::C::C<int>::X");
+    test_option(b"?d5@@YAPBV?$B@VA@@@@XZ", b"d5");
+    test_option(b"??IBase@@QEAAHH@Z", b"Base::operator&");
+    test_option(b"?ret_fnptrarray@@YAP6AXQAH@ZXZ", b"ret_fnptrarray");
+    test_option(b"??Pklass@@QEAAHH@Z", b"klass::operator>=");
+    test_option(b"??$forward@P8?$DecoderStream@$01@media@@AEXXZ@std@@YA$$QAP8?$DecoderStream@$01@media@@AEXXZAAP812@AEXXZ@Z", b"std::forward<void (__thiscall media::DecoderStream<2>::*)(void)>");
+    test_option(b"?foo_piad@@YAXPIAD@Z", b"foo_piad");
+    test_option(b"??4Base@@QEAAHH@Z", b"Base::operator=");
+    test_option(b"?s0@PR13182@@3PADA", b"PR13182::s0");
+    test_option(b"?foo_papcd@@YAXPEAPECD@Z", b"foo_papcd");
+    test_option(b"?x@@YAXMHZZ", b"x");
+    test_option(
+        b"??0?$IntTemplate@$0CAB@@@QAE@XZ",
+        b"IntTemplate<513>::IntTemplate<513>",
+    );
+    test_option(b"??0?$ClassTemplate@$J??_9MostGeneral@@$BA@AEA@M@3@@QAE@XZ", b"ClassTemplate<{MostGeneral::`vcall'{0}, 0, 12, 4}>::ClassTemplate<{MostGeneral::`vcall'{0}, 0, 12, 4}>");
+    test_option(b"??CBase@@QEAAHXZ", b"Base::operator->");
+    test_option(b"?h3@@3QIAHIA", b"h3");
+    test_option(b"??OBase@@QEAAHH@Z", b"Base::operator>");
+    test_option(b"?M@?1???$L@H@@YAHXZ@4HA", b"`L<int>'::`2'::M");
+    test_option(b"??Vklass@@QEAAHH@Z", b"klass::operator&&");
+    test_option(b"?c10@@YAACVA@@XZ", b"c10");
+    test_option(b"?n@@3U?$J@UN@@$HA@@@A", b"n");
+    test_option(
+        b"??0?$Class@$$BY04H@@QEAA@XZ",
+        b"Class<int[5]>::Class<int[5]>",
+    );
+    test_option(b"??2@YAPAXI@Z", b"operator new");
+    test_option(b"??_9Base@@$B7AA", b"Base::`vcall'{8}");
+    test_option(b"?M@?0??L@@YAHXZ@4HA", b"`L'::`1'::M");
+    test_option(b"?foo@A@PR19361@@QIHAEXXZ", b"PR19361::A::foo");
+    test_option(
+        b"?k@FTypeWithQuals@@3U?$S@$$A8@@GAAHXZ@1@A",
+        b"FTypeWithQuals::k",
+    );
+    test_option(
+        b"??$FunctionPointerTemplate@$1?spam@@YAXXZ@@YAXXZ",
+        b"FunctionPointerTemplate<&spam>",
+    );
+    test_option(b"?foo_pcrcd@@YAXPECRECD@Z", b"foo_pcrcd");
+    test_option(
+        b"?l@FTypeWithQuals@@3U?$S@$$A8@@HAAHXZ@1@A",
+        b"FTypeWithQuals::l",
+    );
+    test_option(b"?mangle_yes_backref1@@YAXQEAH0@Z", b"mangle_yes_backref1");
+    test_option(b"?x@@3QEBHEB", b"x");
+    test_option(b"?priv_stat_foo@S@@CAXXZ", b"S::priv_stat_foo");
+    test_option(
+        b"??$CallMethod@UO@@$H??_91@$BA@AE3@@YAXAAUO@@@Z",
+        b"CallMethod<O, {O::`vcall'{0}, 4}>",
+    );
+    test_option(
+        b"??0?$IntTemplate@$0L@@@QEAA@XZ",
+        b"IntTemplate<11>::IntTemplate<11>",
+    );
+    test_option(
+        b"?bar@NB@PR13207@@YAXV?$Y@VX@NB@PR13207@@@NA@2@@Z",
+        b"PR13207::NB::bar",
+    );
+    test_option(b"?mangle_yes_backref0@@YAXQEAH0@Z", b"mangle_yes_backref0");
+    test_option(b"?foo_fnptrconst@@YAXP6AXQAH@Z@Z", b"foo_fnptrconst");
+    test_option(b"??_3Base@@QEAAHH@Z", b"Base::operator<<=");
+    test_option(
+        b"??_F?$SomeTemplate@H@@QAEXXZ",
+        b"SomeTemplate<int>::`default constructor closure'",
+    );
+    test_option(b"?foo_qapad@@YAXQEAPEAD@Z", b"foo_qapad");
+    test_option(b"??_R3Base@@8", b"Base::`RTTI Class Hierarchy Descriptor'");
+    test_option(b"?zeta@@YAXP6AHHH@Z@Z", b"zeta");
+    test_option(b"?g2@@YAXUS@@0@Z", b"g2");
+    test_option(b"?x@@3P6AHMNH@ZEA", b"x");
+    test_option(
+        b"?foo_fnptrbackref1@@YAXP6AXQEAH@Z1@Z",
+        b"foo_fnptrbackref1",
+    );
+    test_option(b"?s1@PR13182@@3PADA", b"PR13182::s1");
+    test_option(b"?foo_aay144cbh@@YAXAAY144$$CBH@Z", b"foo_aay144cbh");
+    test_option(b"??Dklass@@QEAAHXZ", b"klass::operator*");
+    test_option(
+        b"??0?$IntTemplate@$0EAC@@@QEAA@XZ",
+        b"IntTemplate<1026>::IntTemplate<1026>",
+    );
+    test_option(
+        b"??0?$IntTemplate@$0A@@@QEAA@XZ",
+        b"IntTemplate<0>::IntTemplate<0>",
+    );
+    test_option(
+        b"??0?$IntTemplate@$0?8@@QEAA@XZ",
+        b"IntTemplate<-9>::IntTemplate<-9>",
+    );
+    test_option(
+        b"??0?$Class@$$BY04$$CBH@@QEAA@XZ",
+        b"Class<int const[5]>::Class<int const[5]>",
+    );
+    test_option(
+        b"?function_pointer@@YAXV?$C@P6AXXZ@@@Z",
+        b"function_pointer",
+    );
+    test_option(
+        b"??$unaligned_x@PFAH@@3PFAHA",
+        b"unaligned_x<int __unaligned *>",
+    );
 }

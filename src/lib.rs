@@ -349,6 +349,17 @@ bitflags::bitflags! {
         /// assert_eq!(with_flag,    b"void f(int *)"[..]);
         /// ```
         const NO_MS_KEYWORDS = 1 << 8;
+
+        /// Output only the name for the primary declaration.
+        /// ```rust
+        /// use undname::Flags;
+        /// let input = b"?world@hello@@QEDAXXZ".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NAME_ONLY).unwrap();
+        /// assert_eq!(without_flag, b"public: void __cdecl hello::world(void) const volatile"[..]);
+        /// assert_eq!(with_flag,    b"hello::world"[..]);
+        /// ```
+        const NAME_ONLY = 1 << 9;
     }
 }
 
@@ -396,6 +407,11 @@ impl Flags {
     #[must_use]
     fn no_ms_keywords(self) -> bool {
         self.contains(Self::NO_MS_KEYWORDS)
+    }
+
+    #[must_use]
+    fn name_only(self) -> bool {
+        self.contains(Self::NAME_ONLY)
     }
 }
 

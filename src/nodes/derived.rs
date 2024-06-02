@@ -151,9 +151,9 @@ impl FunctionSignatureNode {
         cache: &NodeCache,
         ob: &mut W,
         flags: OutputFlags,
-        suppress_calling_convention: bool,
+        needs_special_handling: bool,
     ) -> Result<()> {
-        if !flags.no_access_specifier() {
+        if !flags.no_access_specifier() && !flags.name_only() {
             if self.function_class.is_public() {
                 safe_write!(ob, "public: ")?;
             }
@@ -165,7 +165,7 @@ impl FunctionSignatureNode {
             }
         }
 
-        if !flags.no_member_type() {
+        if !flags.no_member_type() && !flags.name_only() {
             if !self.function_class.is_global() && self.function_class.is_static() {
                 safe_write!(ob, "static ")?;
             }
@@ -177,17 +177,92 @@ impl FunctionSignatureNode {
             }
         }
 
-        if !flags.no_return_type() {
+        if !flags.no_return_type() && (needs_special_handling || !flags.name_only()) {
             if let Some(return_type) = self.return_type.map(|x| x.resolve(cache)) {
                 return_type.output_pre(cache, ob, flags)?;
                 safe_write!(ob, " ")?;
             }
         }
 
-        if !suppress_calling_convention && !flags.no_calling_convention() && !flags.no_ms_keywords()
+        if !needs_special_handling
+            && !flags.no_calling_convention()
+            && !flags.no_ms_keywords()
+            && !flags.name_only()
         {
             if let Some(call_convention) = self.call_convention {
                 call_convention.output(ob, flags)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn do_output_post<W: Writer>(
+        &self,
+        cache: &NodeCache,
+        ob: &mut W,
+        flags: OutputFlags,
+        needs_special_handling: bool,
+    ) -> Result<()> {
+        if (needs_special_handling || !flags.name_only())
+            && !self.function_class.no_parameter_list()
+        {
+            safe_write!(ob, "(")?;
+            if let Some(params) = self.params.map(|x| x.resolve(cache)) {
+                params.output(cache, ob, flags)?;
+            } else {
+                safe_write!(ob, "void")?;
+            }
+
+            if self.is_variadic {
+                if ob.last().is_some_and(|x| *x != b'(') {
+                    safe_write!(ob, ", ")?;
+                }
+                safe_write!(ob, "...")?;
+            }
+            safe_write!(ob, ")")?;
+        }
+
+        if !flags.no_this_type() && !flags.name_only() {
+            if self.quals.is_const() {
+                safe_write!(ob, " const")?;
+            }
+            if self.quals.is_volatile() {
+                safe_write!(ob, " volatile")?;
+            }
+            if !flags.no_ms_keywords() {
+                if self.quals.is_restrict() {
+                    if flags.no_leading_underscores() {
+                        safe_write!(ob, " restrict")?;
+                    } else {
+                        safe_write!(ob, " __restrict")?;
+                    }
+                }
+                if self.quals.is_unaligned() {
+                    if flags.no_leading_underscores() {
+                        safe_write!(ob, " unaligned")?;
+                    } else {
+                        safe_write!(ob, " __unaligned")?;
+                    }
+                }
+            }
+        }
+
+        if self.is_noexcept {
+            safe_write!(ob, " noexcept")?;
+        }
+
+        if !flags.no_this_type() && !flags.name_only() {
+            match self.ref_qualifier {
+                Some(FunctionRefQualifier::Reference) => safe_write!(ob, " &")?,
+                Some(FunctionRefQualifier::RValueReference) => safe_write!(ob, " &&")?,
+                _ => (),
+            }
+        }
+
+        if !flags.no_return_type() && !flags.name_only() {
+            if let Some(return_type) = self.return_type.map(|x| x.resolve(cache)) {
+                return_type.output_post(cache, ob, flags)?;
             }
         }
 
@@ -233,67 +308,7 @@ impl WriteableTypeNode for FunctionSignatureNode {
         ob: &mut W,
         flags: OutputFlags,
     ) -> Result<()> {
-        if !self.function_class.no_parameter_list() {
-            safe_write!(ob, "(")?;
-            if let Some(params) = self.params.map(|x| x.resolve(cache)) {
-                params.output(cache, ob, flags)?;
-            } else {
-                safe_write!(ob, "void")?;
-            }
-
-            if self.is_variadic {
-                if ob.last().is_some_and(|x| *x != b'(') {
-                    safe_write!(ob, ", ")?;
-                }
-                safe_write!(ob, "...")?;
-            }
-            safe_write!(ob, ")")?;
-        }
-
-        if !flags.no_this_type() {
-            if self.quals.is_const() {
-                safe_write!(ob, " const")?;
-            }
-            if self.quals.is_volatile() {
-                safe_write!(ob, " volatile")?;
-            }
-            if !flags.no_ms_keywords() {
-                if self.quals.is_restrict() {
-                    if flags.no_leading_underscores() {
-                        safe_write!(ob, " restrict")?;
-                    } else {
-                        safe_write!(ob, " __restrict")?;
-                    }
-                }
-                if self.quals.is_unaligned() {
-                    if flags.no_leading_underscores() {
-                        safe_write!(ob, " unaligned")?;
-                    } else {
-                        safe_write!(ob, " __unaligned")?;
-                    }
-                }
-            }
-        }
-
-        if self.is_noexcept {
-            safe_write!(ob, " noexcept")?;
-        }
-
-        if !flags.no_this_type() {
-            match self.ref_qualifier {
-                Some(FunctionRefQualifier::Reference) => safe_write!(ob, " &")?,
-                Some(FunctionRefQualifier::RValueReference) => safe_write!(ob, " &&")?,
-                _ => (),
-            }
-        }
-
-        if !flags.no_return_type() {
-            if let Some(return_type) = self.return_type.map(|x| x.resolve(cache)) {
-                return_type.output_post(cache, ob, flags)?;
-            }
-        }
-
-        Ok(())
+        self.do_output_post(cache, ob, flags, false)
     }
 }
 
@@ -317,11 +332,41 @@ impl ThunkSignatureNode {
         cache: &NodeCache,
         ob: &mut W,
         flags: OutputFlags,
-        suppress_calling_convention: bool,
+        needs_special_handling: bool,
     ) -> Result<()> {
-        safe_write!(ob, "[thunk]: ")?;
+        if !flags.name_only() {
+            safe_write!(ob, "[thunk]: ")?;
+        }
         self.function_node
-            .do_output_pre(cache, ob, flags, suppress_calling_convention)
+            .do_output_pre(cache, ob, flags, needs_special_handling)
+    }
+
+    fn do_output_post<W: Writer>(
+        &self,
+        cache: &NodeCache,
+        ob: &mut W,
+        flags: OutputFlags,
+        needs_special_handling: bool,
+    ) -> Result<()> {
+        let ThisAdjustor {
+            static_offset,
+            vbptr_offset,
+            vboffset_offset,
+            vtor_disp_offset,
+        } = self.this_adjust;
+
+        if self.function_class.has_static_this_adjust() {
+            safe_write!(ob, "`adjustor{{{static_offset}}}'")?;
+        } else if self.function_class.has_virtual_this_adjust() {
+            if self.function_class.has_virtual_this_adjust_ex() {
+                safe_write!(ob, "`vtordispex{{{vbptr_offset}, {vboffset_offset}, {vtor_disp_offset}, {static_offset}}}'")?;
+            } else {
+                safe_write!(ob, "`vtordisp{{{vtor_disp_offset}, {static_offset}}}'")?;
+            }
+        }
+
+        self.function_node
+            .do_output_post(cache, ob, flags, needs_special_handling)
     }
 }
 
@@ -361,24 +406,7 @@ impl WriteableTypeNode for ThunkSignatureNode {
         ob: &mut W,
         flags: OutputFlags,
     ) -> Result<()> {
-        let ThisAdjustor {
-            static_offset,
-            vbptr_offset,
-            vboffset_offset,
-            vtor_disp_offset,
-        } = self.this_adjust;
-
-        if self.function_class.has_static_this_adjust() {
-            safe_write!(ob, "`adjustor{{{static_offset}}}'")?;
-        } else if self.function_class.has_virtual_this_adjust() {
-            if self.function_class.has_virtual_this_adjust_ex() {
-                safe_write!(ob, "`vtordispex{{{vbptr_offset}, {vboffset_offset}, {vtor_disp_offset}, {static_offset}}}'")?;
-            } else {
-                safe_write!(ob, "`vtordisp{{{vtor_disp_offset}, {static_offset}}}'")?;
-            }
-        }
-
-        self.function_node.output_post(cache, ob, flags)
+        self.do_output_post(cache, ob, flags, false)
     }
 }
 
@@ -416,10 +444,12 @@ impl WriteableTypeNode for PointerTypeNode {
             // It needs to go inside the parentheses.
             match sig {
                 SignatureNode::FunctionSignature(func) => {
-                    func.do_output_pre(cache, ob, flags, true)
+                    func.do_output_pre(cache, ob, flags, true)?
                 }
-                SignatureNode::ThunkSignature(thunk) => thunk.do_output_pre(cache, ob, flags, true),
-            }?;
+                SignatureNode::ThunkSignature(thunk) => {
+                    thunk.do_output_pre(cache, ob, flags, true)?
+                }
+            }
         } else {
             pointee.output_pre(cache, ob, flags)?;
         }
@@ -476,7 +506,18 @@ impl WriteableTypeNode for PointerTypeNode {
         if matches!(pointee, TypeNode::ArrayType(_) | TypeNode::Signature(_)) {
             safe_write!(ob, ")")?;
         }
-        pointee.output_post(cache, ob, flags)
+        if let TypeNode::Signature(sig) = pointee {
+            match sig {
+                SignatureNode::FunctionSignature(func) => {
+                    func.do_output_post(cache, ob, flags, true)
+                }
+                SignatureNode::ThunkSignature(thunk) => {
+                    thunk.do_output_post(cache, ob, flags, true)
+                }
+            }
+        } else {
+            pointee.output_post(cache, ob, flags)
+        }
     }
 }
 
@@ -500,7 +541,7 @@ impl WriteableTypeNode for TagTypeNode {
         ob: &mut W,
         flags: OutputFlags,
     ) -> Result<()> {
-        if !flags.no_tag_specifier() {
+        if !flags.no_tag_specifier() && !flags.name_only() {
             let tag = match self.tag {
                 TagKind::Class => "class",
                 TagKind::Struct => "struct",
@@ -667,8 +708,12 @@ pub(crate) struct VcallThunkIdentifierNode {
 }
 
 impl WriteableNode for VcallThunkIdentifierNode {
-    fn output<W: Writer>(&self, _: &NodeCache, ob: &mut W, _: OutputFlags) -> Result<()> {
-        safe_write!(ob, "`vcall'{{{}, {{flat}}}}", self.offset_in_vtable)
+    fn output<W: Writer>(&self, _: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
+        if flags.name_only() {
+            safe_write!(ob, "`vcall'{{{}}}", self.offset_in_vtable)
+        } else {
+            safe_write!(ob, "`vcall'{{{}, {{flat}}}}", self.offset_in_vtable)
+        }
     }
 }
 
@@ -1079,7 +1124,9 @@ pub(crate) struct SpecialTableSymbolNode {
 
 impl WriteableNode for SpecialTableSymbolNode {
     fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        self.quals.output(ob, flags, false, true)?;
+        if !flags.name_only() {
+            self.quals.output(ob, flags, false, true)?;
+        }
         self.name.resolve(cache).output(cache, ob, flags)?;
         if let Some(target_name) = self.target_name.map(|x| x.resolve(cache)) {
             safe_write!(ob, "{{for `")?;
@@ -1160,16 +1207,16 @@ impl WriteableNode for VariableSymbolNode {
             _ => (None, false),
         };
 
-        if !flags.no_access_specifier() {
+        if !flags.no_access_specifier() && !flags.name_only() {
             if let Some(access_spec) = access_spec {
                 safe_write!(ob, "{access_spec}: ")?;
             }
         }
-        if !flags.no_member_type() && is_static {
+        if !flags.no_member_type() && !flags.name_only() && is_static {
             safe_write!(ob, "static ")?;
         }
 
-        let r#type = (!flags.no_variable_type())
+        let r#type = (!flags.no_variable_type() && !flags.name_only())
             .then(|| self.r#type.map(|x| x.resolve(cache)))
             .flatten();
 

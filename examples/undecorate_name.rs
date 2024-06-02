@@ -46,6 +46,9 @@ struct Cli {
 
     #[arg(long)]
     no_ms_keywords: bool,
+
+    #[arg(long)]
+    name_only: bool,
 }
 
 fn main() {
@@ -78,6 +81,9 @@ fn main() {
         }
         if cli.no_ms_keywords {
             flags |= Flags::NO_MS_KEYWORDS;
+        }
+        if cli.name_only {
+            flags |= Flags::NAME_ONLY;
         }
         flags
     };
