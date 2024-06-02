@@ -73,7 +73,6 @@ impl<'bump> Writer for BumpVec<'bump, u8> {
     }
 }
 
-#[macro_export]
 macro_rules! safe_write {
 	($dst:expr, $($arg:tt)*) => {
 		match write!($dst, $($arg)*) {
@@ -89,6 +88,8 @@ macro_rules! safe_write {
 		}
 	};
 }
+
+pub(crate) use safe_write;
 
 #[non_exhaustive]
 #[derive(thiserror::Error, Debug)]
