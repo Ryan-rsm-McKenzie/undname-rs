@@ -81,7 +81,7 @@ impl WriteableNode for PrimitiveTypeNode {
 }
 
 impl WriteableTypeNode for PrimitiveTypeNode {
-    fn output_pre<W: Writer>(&self, _: &NodeCache, ob: &mut W, _: OutputFlags) -> Result<()> {
+    fn output_pre<W: Writer>(&self, _: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
         let kind = match self.prim_kind {
             PrimitiveKind::Void => "void",
             PrimitiveKind::Bool => "bool",
@@ -106,7 +106,7 @@ impl WriteableTypeNode for PrimitiveTypeNode {
             PrimitiveKind::Nullptr => "std::nullptr_t",
         };
         safe_write!(ob, "{kind}")?;
-        self.quals.output(ob, true, false)
+        self.quals.output(ob, flags, true, false)
     }
 
     fn output_post<W: Writer>(&self, _: &NodeCache, _: &mut W, _: OutputFlags) -> Result<()> {
@@ -206,7 +206,7 @@ impl WriteableTypeNode for FunctionSignatureNode {
 
         if !flags.no_calling_convention() {
             if let Some(call_convention) = self.call_convention {
-                call_convention.output(ob)?;
+                call_convention.output(ob, flags)?;
             }
         }
 
@@ -244,10 +244,18 @@ impl WriteableTypeNode for FunctionSignatureNode {
                 safe_write!(ob, " volatile")?;
             }
             if self.quals.is_restrict() {
-                safe_write!(ob, " __restrict")?;
+                if flags.no_leading_underscores() {
+                    safe_write!(ob, " restrict")?;
+                } else {
+                    safe_write!(ob, " __restrict")?;
+                }
             }
             if self.quals.is_unaligned() {
-                safe_write!(ob, " __unaligned")?;
+                if flags.no_leading_underscores() {
+                    safe_write!(ob, " unaligned")?;
+                } else {
+                    safe_write!(ob, " __unaligned")?;
+                }
             }
         }
 
@@ -383,7 +391,11 @@ impl WriteableTypeNode for PointerTypeNode {
         super::output_space_if_necessary(ob)?;
 
         if self.quals.is_unaligned() {
-            safe_write!(ob, "__unaligned ")?;
+            if flags.no_leading_underscores() {
+                safe_write!(ob, "unaligned ")?;
+            } else {
+                safe_write!(ob, "__unaligned ")?;
+            }
         }
 
         match pointee {
@@ -391,7 +403,7 @@ impl WriteableTypeNode for PointerTypeNode {
             TypeNode::Signature(sig) => {
                 safe_write!(ob, "(")?;
                 if let Some(call_convention) = sig.as_node().call_convention {
-                    call_convention.output(ob)?;
+                    call_convention.output(ob, flags)?;
                 }
                 safe_write!(ob, " ")?;
             }
@@ -412,7 +424,7 @@ impl WriteableTypeNode for PointerTypeNode {
             PointerAffinity::RValueReference => safe_write!(ob, "&&")?,
         }
 
-        self.quals.output(ob, false, false)
+        self.quals.output(ob, flags, false, false)
     }
 
     fn output_post<W: Writer>(
@@ -463,7 +475,7 @@ impl WriteableTypeNode for TagTypeNode {
             .resolve(cache)
             .output(cache, ob, flags)?;
 
-        self.quals.output(ob, true, false)
+        self.quals.output(ob, flags, true, false)
     }
 
     fn output_post<W: Writer>(&self, _: &NodeCache, _: &mut W, _: OutputFlags) -> Result<()> {
@@ -536,7 +548,7 @@ impl WriteableTypeNode for ArrayTypeNode {
         self.element_type
             .resolve(cache)
             .output_pre(cache, ob, flags)?;
-        self.quals.output(ob, true, false)
+        self.quals.output(ob, flags, true, false)
     }
 
     fn output_post<W: Writer>(
@@ -1028,7 +1040,7 @@ pub(crate) struct SpecialTableSymbolNode {
 
 impl WriteableNode for SpecialTableSymbolNode {
     fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        self.quals.output(ob, false, true)?;
+        self.quals.output(ob, flags, false, true)?;
         self.name.resolve(cache).output(cache, ob, flags)?;
         if let Some(target_name) = self.target_name.map(|x| x.resolve(cache)) {
             safe_write!(ob, "{{for `")?;

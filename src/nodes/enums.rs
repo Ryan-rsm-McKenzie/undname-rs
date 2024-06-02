@@ -15,6 +15,7 @@
 use crate::{
     nodes::Result,
     safe_write,
+    OutputFlags,
     Writer,
 };
 
@@ -51,11 +52,17 @@ enum SingleQualifier {
 }
 
 impl SingleQualifier {
-    fn output_single_qualifier<W: Writer>(self, ob: &mut W) -> Result<()> {
+    fn output_single_qualifier<W: Writer>(self, ob: &mut W, flags: OutputFlags) -> Result<()> {
         let qualifier = match self {
             Self::Const => "const",
             Self::Volatile => "volatile",
-            Self::Restrict => "__restrict",
+            Self::Restrict => {
+                if flags.no_leading_underscores() {
+                    "restrict"
+                } else {
+                    "__restrict"
+                }
+            }
         };
         safe_write!(ob, "{qualifier}")
     }
@@ -85,15 +92,17 @@ impl Qualifiers {
     pub(super) fn output<W: Writer>(
         self,
         ob: &mut W,
+        flags: OutputFlags,
         space_before: bool,
         space_after: bool,
     ) -> Result<()> {
         if self != Self::Q_None {
             let len_before = ob.len();
-            let space_before = self.output_if_present(ob, SingleQualifier::Const, space_before)?;
             let space_before =
-                self.output_if_present(ob, SingleQualifier::Volatile, space_before)?;
-            self.output_if_present(ob, SingleQualifier::Restrict, space_before)?;
+                self.output_if_present(ob, flags, SingleQualifier::Const, space_before)?;
+            let space_before =
+                self.output_if_present(ob, flags, SingleQualifier::Volatile, space_before)?;
+            self.output_if_present(ob, flags, SingleQualifier::Restrict, space_before)?;
             let len_after = ob.len();
             if space_after && len_after > len_before {
                 safe_write!(ob, " ")?;
@@ -106,6 +115,7 @@ impl Qualifiers {
     fn output_if_present<W: Writer>(
         self,
         ob: &mut W,
+        flags: OutputFlags,
         mask: SingleQualifier,
         needs_space: bool,
     ) -> Result<bool> {
@@ -117,7 +127,7 @@ impl Qualifiers {
             safe_write!(ob, " ")?;
         }
 
-        mask.output_single_qualifier(ob)?;
+        mask.output_single_qualifier(ob, flags)?;
         Ok(true)
     }
 }
@@ -160,19 +170,34 @@ pub(crate) enum CallingConv {
 }
 
 impl CallingConv {
-    pub(super) fn output<W: Writer>(self, ob: &mut W) -> Result<()> {
+    pub(super) fn output<W: Writer>(self, ob: &mut W, flags: OutputFlags) -> Result<()> {
         super::output_space_if_necessary(ob)?;
-        let cc = match self {
-            CallingConv::Cdecl => "__cdecl",
-            CallingConv::Fastcall => "__fastcall",
-            CallingConv::Pascal => "__pascal",
-            CallingConv::Stdcall => "__stdcall",
-            CallingConv::Thiscall => "__thiscall",
-            CallingConv::Eabi => "__eabi",
-            CallingConv::Vectorcall => "__vectorcall",
-            CallingConv::Clrcall => "__clrcall",
-            CallingConv::Swift => "__attribute__((__swiftcall__)) ",
-            CallingConv::SwiftAsync => "__attribute__((__swiftasynccall__)) ",
+        let cc = if flags.no_leading_underscores() {
+            match self {
+                CallingConv::Cdecl => "cdecl",
+                CallingConv::Fastcall => "fastcall",
+                CallingConv::Pascal => "pascal",
+                CallingConv::Stdcall => "stdcall",
+                CallingConv::Thiscall => "thiscall",
+                CallingConv::Eabi => "eabi",
+                CallingConv::Vectorcall => "vectorcall",
+                CallingConv::Clrcall => "clrcall",
+                CallingConv::Swift => "__attribute__((__swiftcall__)) ",
+                CallingConv::SwiftAsync => "__attribute__((__swiftasynccall__)) ",
+            }
+        } else {
+            match self {
+                CallingConv::Cdecl => "__cdecl",
+                CallingConv::Fastcall => "__fastcall",
+                CallingConv::Pascal => "__pascal",
+                CallingConv::Stdcall => "__stdcall",
+                CallingConv::Thiscall => "__thiscall",
+                CallingConv::Eabi => "__eabi",
+                CallingConv::Vectorcall => "__vectorcall",
+                CallingConv::Clrcall => "__clrcall",
+                CallingConv::Swift => "__attribute__((__swiftcall__)) ",
+                CallingConv::SwiftAsync => "__attribute__((__swiftasynccall__)) ",
+            }
         };
         safe_write!(ob, "{cc}")
     }

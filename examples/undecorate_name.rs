@@ -40,6 +40,9 @@ struct Cli {
 
     #[arg(long)]
     no_this_type: bool,
+
+    #[arg(long)]
+    no_leading_underscores: bool,
 }
 
 fn main() {
@@ -66,6 +69,9 @@ fn main() {
         }
         if cli.no_this_type {
             flags |= Flags::NO_THISTYPE;
+        }
+        if cli.no_leading_underscores {
+            flags |= Flags::NO_LEADING_UNDERSCORES;
         }
         flags
     };

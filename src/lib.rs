@@ -324,6 +324,17 @@ bitflags::bitflags! {
         /// assert_eq!(with_flag,    b"public: void __cdecl hello::world(void)"[..]);
         /// ```
         const NO_THISTYPE = 1 << 6;
+
+        /// Supress leading underscores on Microsoft extended keywords (`__restrict`/`__cdecl`/`__fastcall`) from being included in the output.
+        /// ```rust
+        /// use undname::Flags;
+        /// let input = b"?foo_piad@@YAXPIAD@Z".into();
+        /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
+        /// let with_flag = undname::demangle(input, Flags::NO_LEADING_UNDERSCORES).unwrap();
+        /// assert_eq!(without_flag, b"void __cdecl foo_piad(char *__restrict)"[..]);
+        /// assert_eq!(with_flag,    b"void cdecl foo_piad(char *restrict)"[..]);
+        /// ```
+        const NO_LEADING_UNDERSCORES = 1 << 7;
     }
 }
 
@@ -361,6 +372,11 @@ impl Flags {
     #[must_use]
     fn no_this_type(self) -> bool {
         self.contains(Self::NO_THISTYPE)
+    }
+
+    #[must_use]
+    fn no_leading_underscores(self) -> bool {
+        self.contains(Self::NO_LEADING_UNDERSCORES)
     }
 }
 
