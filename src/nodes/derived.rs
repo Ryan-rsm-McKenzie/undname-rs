@@ -263,10 +263,12 @@ impl WriteableTypeNode for FunctionSignatureNode {
             safe_write!(ob, " noexcept")?;
         }
 
-        match self.ref_qualifier {
-            Some(FunctionRefQualifier::Reference) => safe_write!(ob, " &")?,
-            Some(FunctionRefQualifier::RValueReference) => safe_write!(ob, " &&")?,
-            _ => (),
+        if !flags.no_this_type() {
+            match self.ref_qualifier {
+                Some(FunctionRefQualifier::Reference) => safe_write!(ob, " &")?,
+                Some(FunctionRefQualifier::RValueReference) => safe_write!(ob, " &&")?,
+                _ => (),
+            }
         }
 
         if !flags.no_return_type() {
