@@ -3328,3 +3328,34 @@ fn test_no_this_type() {
         b"struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::l",
     );
 }
+
+#[test]
+fn test_no_leading_underscores() {
+    let test_option = |mangled_name: &[u8], demangled_name: &[u8]| {
+        do_test(
+            mangled_name,
+            demangled_name,
+            false,
+            Flags::NO_LEADING_UNDERSCORES,
+        );
+    };
+
+    test_option(
+        b"?unaligned_foo5@@YAXPIFAH@Z",
+        b"void cdecl unaligned_foo5(int unaligned *restrict)",
+    );
+    test_option(
+        b"?beta@@YI_N_J_W@Z",
+        b"bool fastcall beta(__int64, wchar_t)",
+    );
+    test_option(b"?f5@@YCXXZ", b"void pascal f5(void)");
+    test_option(
+        b"?j@@3P6GHCE@ZA",
+        b"int (stdcall *j)(signed char, unsigned char)",
+    );
+    test_option(
+        b"?mbb@S@@QAEX_N0@Z",
+        b"public: void thiscall S::mbb(bool, bool)",
+    );
+    test_option(b"?vector_func@@YQXXZ", b"void vectorcall vector_func(void)");
+}
