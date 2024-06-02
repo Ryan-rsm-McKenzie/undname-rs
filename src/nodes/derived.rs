@@ -402,10 +402,12 @@ impl WriteableTypeNode for PointerTypeNode {
             TypeNode::ArrayType(_) => safe_write!(ob, "(")?,
             TypeNode::Signature(sig) => {
                 safe_write!(ob, "(")?;
-                if let Some(call_convention) = sig.as_node().call_convention {
-                    call_convention.output(ob, flags)?;
+                if !flags.no_calling_convention() {
+                    if let Some(call_convention) = sig.as_node().call_convention {
+                        call_convention.output(ob, flags)?;
+                        safe_write!(ob, " ")?;
+                    }
                 }
-                safe_write!(ob, " ")?;
             }
             _ => (),
         }
