@@ -37,6 +37,7 @@ use crate::{
         PrimitiveKind,
         Qualifiers,
         Result,
+        SignatureNode,
         StorageClass,
         TagKind,
         TypeNode,
@@ -144,34 +145,13 @@ pub(crate) struct FunctionSignatureNode {
     pub(crate) is_noexcept: bool,
 }
 
-impl Default for FunctionSignatureNode {
-    fn default() -> Self {
-        Self {
-            quals: Qualifiers::Q_None,
-            affinity: None,
-            call_convention: None,
-            function_class: FuncClass::FC_Global,
-            ref_qualifier: None,
-            return_type: None,
-            is_variadic: false,
-            params: None,
-            is_noexcept: false,
-        }
-    }
-}
-
-impl WriteableNode for FunctionSignatureNode {
-    fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        self.output_pair(cache, ob, flags)
-    }
-}
-
-impl WriteableTypeNode for FunctionSignatureNode {
-    fn output_pre<W: Writer>(
+impl FunctionSignatureNode {
+    fn do_output_pre<W: Writer>(
         &self,
         cache: &NodeCache,
         ob: &mut W,
         flags: OutputFlags,
+        suppress_calling_convention: bool,
     ) -> Result<()> {
         if !flags.no_access_specifier() {
             if self.function_class.is_public() {
@@ -204,13 +184,47 @@ impl WriteableTypeNode for FunctionSignatureNode {
             }
         }
 
-        if !flags.no_calling_convention() && !flags.no_ms_keywords() {
+        if !suppress_calling_convention && !flags.no_calling_convention() && !flags.no_ms_keywords()
+        {
             if let Some(call_convention) = self.call_convention {
                 call_convention.output(ob, flags)?;
             }
         }
 
         Ok(())
+    }
+}
+
+impl Default for FunctionSignatureNode {
+    fn default() -> Self {
+        Self {
+            quals: Qualifiers::Q_None,
+            affinity: None,
+            call_convention: None,
+            function_class: FuncClass::FC_Global,
+            ref_qualifier: None,
+            return_type: None,
+            is_variadic: false,
+            params: None,
+            is_noexcept: false,
+        }
+    }
+}
+
+impl WriteableNode for FunctionSignatureNode {
+    fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
+        self.output_pair(cache, ob, flags)
+    }
+}
+
+impl WriteableTypeNode for FunctionSignatureNode {
+    fn output_pre<W: Writer>(
+        &self,
+        cache: &NodeCache,
+        ob: &mut W,
+        flags: OutputFlags,
+    ) -> Result<()> {
+        self.do_output_pre(cache, ob, flags, false)
     }
 
     fn output_post<W: Writer>(
@@ -297,6 +311,20 @@ pub(crate) struct ThunkSignatureNode {
     pub(crate) this_adjust: ThisAdjustor,
 }
 
+impl ThunkSignatureNode {
+    fn do_output_pre<W: Writer>(
+        &self,
+        cache: &NodeCache,
+        ob: &mut W,
+        flags: OutputFlags,
+        suppress_calling_convention: bool,
+    ) -> Result<()> {
+        safe_write!(ob, "[thunk]: ")?;
+        self.function_node
+            .do_output_pre(cache, ob, flags, suppress_calling_convention)
+    }
+}
+
 impl Deref for ThunkSignatureNode {
     type Target = FunctionSignatureNode;
 
@@ -324,8 +352,7 @@ impl WriteableTypeNode for ThunkSignatureNode {
         ob: &mut W,
         flags: OutputFlags,
     ) -> Result<()> {
-        safe_write!(ob, "[thunk]: ")?;
-        self.function_node.output_pre(cache, ob, flags)
+        self.do_output_pre(cache, ob, flags, false)
     }
 
     fn output_post<W: Writer>(
@@ -387,7 +414,12 @@ impl WriteableTypeNode for PointerTypeNode {
         if let TypeNode::Signature(sig) = pointee {
             // If this is a pointer to a function, don't output the calling convention.
             // It needs to go inside the parentheses.
-            sig.output_pre(cache, ob, OutputFlags::NO_CALLING_CONVENTION)?;
+            match sig {
+                SignatureNode::FunctionSignature(func) => {
+                    func.do_output_pre(cache, ob, flags, true)
+                }
+                SignatureNode::ThunkSignature(thunk) => thunk.do_output_pre(cache, ob, flags, true),
+            }?;
         } else {
             pointee.output_pre(cache, ob, flags)?;
         }
@@ -406,6 +438,7 @@ impl WriteableTypeNode for PointerTypeNode {
             TypeNode::ArrayType(_) => safe_write!(ob, "(")?,
             TypeNode::Signature(sig) => {
                 safe_write!(ob, "(")?;
+                println!("{flags:?}");
                 if !flags.no_calling_convention() && !flags.no_ms_keywords() {
                     if let Some(call_convention) = sig.as_node().call_convention {
                         call_convention.output(ob, flags)?;
