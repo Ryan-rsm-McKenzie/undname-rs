@@ -59,12 +59,11 @@ impl SingleQualifier {
             Self::Restrict => {
                 if flags.no_ms_keywords() {
                     return Ok(());
+                }
+                if flags.no_leading_underscores() {
+                    "restrict"
                 } else {
-                    if flags.no_leading_underscores() {
-                        "restrict"
-                    } else {
-                        "__restrict"
-                    }
+                    "__restrict"
                 }
             }
         };
