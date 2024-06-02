@@ -410,7 +410,7 @@ pub fn demangle(mangled_name: &BStr, flags: Flags) -> Result<BString> {
 /// See [`demangle`] for more info.
 pub fn demangle_into(mangled_name: &BStr, flags: Flags, result: &mut BString) -> Result<()> {
     let alloc = Bump::default();
-    let d = Demangler::new(&alloc, flags);
+    let d = Demangler::new(mangled_name, flags, &alloc);
     result.clear();
-    d.parse_into(mangled_name, result)
+    d.parse_into(result)
 }
