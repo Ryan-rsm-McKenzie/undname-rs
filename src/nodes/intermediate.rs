@@ -233,20 +233,6 @@ pub(super) type NodeMut<'storage, 'alloc> = Node<
     SymbolNodeMut<'storage, 'alloc>,
 >;
 
-impl<'storage, 'alloc: 'storage> WriteableNode for NodeMut<'storage, 'alloc> {
-    fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        match self {
-            Self::Type(x) => x.output(cache, ob, flags),
-            Self::Identifier(x) => x.output(cache, ob, flags),
-            Self::NodeArray(x) => x.output(cache, ob, flags),
-            Self::QualifiedName(x) => x.output(cache, ob, flags),
-            Self::TemplateParameterReference(x) => x.output(cache, ob, flags),
-            Self::IntegerLiteral(x) => x.output(cache, ob, flags),
-            Self::Symbol(x) => x.output(cache, ob, flags),
-        }
-    }
-}
-
 impl_upcast!(TypeNodeMut<'storage, 'alloc> => NodeMut::Type);
 impl_upcast!(&'storage mut PrimitiveTypeNode => NodeMut::Type);
 impl_upcast!(SignatureNodeMut<'storage, 'alloc> => NodeMut::Type);
@@ -502,62 +488,6 @@ impl<'storage, 'alloc: 'storage> TypeNodeMut<'storage, 'alloc> {
     }
 }
 
-impl<'storage, 'alloc: 'storage> WriteableNode for TypeNodeMut<'storage, 'alloc> {
-    fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        self.output_pair(cache, ob, flags)
-    }
-}
-
-impl<'storage, 'alloc: 'storage> WriteableTypeNode for TypeNodeMut<'storage, 'alloc> {
-    fn output_pair<W: Writer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut W,
-        flags: OutputFlags,
-    ) -> Result<()> {
-        match self {
-            Self::PrimitiveType(x) => x.output_pair(cache, ob, flags),
-            Self::Signature(x) => x.output_pair(cache, ob, flags),
-            Self::PointerType(x) => x.output_pair(cache, ob, flags),
-            Self::TagType(x) => x.output_pair(cache, ob, flags),
-            Self::ArrayType(x) => x.output_pair(cache, ob, flags),
-            Self::CustomType(x) => x.output_pair(cache, ob, flags),
-        }
-    }
-
-    fn output_pre<W: Writer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut W,
-        flags: OutputFlags,
-    ) -> Result<()> {
-        match self {
-            Self::PrimitiveType(x) => x.output_pre(cache, ob, flags),
-            Self::Signature(x) => x.output_pre(cache, ob, flags),
-            Self::PointerType(x) => x.output_pre(cache, ob, flags),
-            Self::TagType(x) => x.output_pre(cache, ob, flags),
-            Self::ArrayType(x) => x.output_pre(cache, ob, flags),
-            Self::CustomType(x) => x.output_pre(cache, ob, flags),
-        }
-    }
-
-    fn output_post<W: Writer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut W,
-        flags: OutputFlags,
-    ) -> Result<()> {
-        match self {
-            Self::PrimitiveType(x) => x.output_post(cache, ob, flags),
-            Self::Signature(x) => x.output_post(cache, ob, flags),
-            Self::PointerType(x) => x.output_post(cache, ob, flags),
-            Self::TagType(x) => x.output_post(cache, ob, flags),
-            Self::ArrayType(x) => x.output_post(cache, ob, flags),
-            Self::CustomType(x) => x.output_post(cache, ob, flags),
-        }
-    }
-}
-
 impl_upcast!(&'storage mut PrimitiveTypeNode => TypeNodeMut::PrimitiveType);
 impl_upcast!(SignatureNodeMut<'storage, 'alloc> => TypeNodeMut::Signature);
 impl_upcast!(&'storage mut FunctionSignatureNode => TypeNodeMut::Signature);
@@ -678,50 +608,6 @@ impl<'storage, 'alloc: 'storage> SignatureNodeMut<'storage, 'alloc> {
     }
 }
 
-impl<'storage, 'alloc: 'storage> WriteableNode for SignatureNodeMut<'storage, 'alloc> {
-    fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        self.output_pair(cache, ob, flags)
-    }
-}
-
-impl<'storage, 'alloc: 'storage> WriteableTypeNode for SignatureNodeMut<'storage, 'alloc> {
-    fn output_pair<W: Writer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut W,
-        flags: OutputFlags,
-    ) -> Result<()> {
-        match self {
-            Self::FunctionSignature(x) => x.output_pair(cache, ob, flags),
-            Self::ThunkSignature(x) => x.output_pair(cache, ob, flags),
-        }
-    }
-
-    fn output_pre<W: Writer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut W,
-        flags: OutputFlags,
-    ) -> Result<()> {
-        match self {
-            Self::FunctionSignature(x) => x.output_pre(cache, ob, flags),
-            Self::ThunkSignature(x) => x.output_pre(cache, ob, flags),
-        }
-    }
-
-    fn output_post<W: Writer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut W,
-        flags: OutputFlags,
-    ) -> Result<()> {
-        match self {
-            Self::FunctionSignature(x) => x.output_post(cache, ob, flags),
-            Self::ThunkSignature(x) => x.output_post(cache, ob, flags),
-        }
-    }
-}
-
 impl_upcast!(&'storage mut FunctionSignatureNode => SignatureNodeMut::FunctionSignature);
 impl_upcast!(&'storage mut ThunkSignatureNode => SignatureNodeMut::ThunkSignature);
 
@@ -825,22 +711,6 @@ impl<'storage, 'alloc: 'storage> IdentifierNodeMut<'storage, 'alloc> {
             Self::RttiBaseClassDescriptor(x) => &mut x.template_params,
         };
         params.0 = Some(template_params);
-    }
-}
-
-impl<'storage, 'alloc: 'storage> WriteableNode for IdentifierNodeMut<'storage, 'alloc> {
-    fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        match self {
-            Self::VcallThunkIdentifier(x) => x.output(cache, ob, flags),
-            Self::DynamicStructorIdentifier(x) => x.output(cache, ob, flags),
-            Self::NamedIdentifier(x) => x.output(cache, ob, flags),
-            Self::IntrinsicFunctionIdentifier(x) => x.output(cache, ob, flags),
-            Self::LiteralOperatorIdentifier(x) => x.output(cache, ob, flags),
-            Self::LocalStaticGuardIdentifier(x) => x.output(cache, ob, flags),
-            Self::ConversionOperatorIdentifier(x) => x.output(cache, ob, flags),
-            Self::StructorIdentifier(x) => x.output(cache, ob, flags),
-            Self::RttiBaseClassDescriptor(x) => x.output(cache, ob, flags),
-        }
     }
 }
 
@@ -949,19 +819,6 @@ impl<'storage, 'alloc: 'storage> SymbolNodeMut<'storage, 'alloc> {
             Self::EncodedStringLiteral(x) => x.name = Some(name),
             Self::VariableSymbol(x) => x.name = Some(name),
             Self::FunctionSymbol(x) => x.name = Some(name),
-        }
-    }
-}
-
-impl<'storage, 'alloc: 'storage> WriteableNode for SymbolNodeMut<'storage, 'alloc> {
-    fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()> {
-        match self {
-            Self::Md5Symbol(x) => x.output(cache, ob, flags),
-            Self::SpecialTableSymbol(x) => x.output(cache, ob, flags),
-            Self::LocalStaticGuardVariable(x) => x.output(cache, ob, flags),
-            Self::EncodedStringLiteral(x) => x.output(cache, ob, flags),
-            Self::VariableSymbol(x) => x.output(cache, ob, flags),
-            Self::FunctionSymbol(x) => x.output(cache, ob, flags),
         }
     }
 }
