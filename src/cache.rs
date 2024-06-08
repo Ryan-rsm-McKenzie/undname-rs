@@ -318,18 +318,18 @@ impl<'alloc> NodeCache<'alloc> {
         T: NodeToResolver + 'alloc,
         &'alloc mut T: Into<NodeStorage<'alloc>>,
     {
+        if self.storage.len() + 1 > (1 << 11) {
+            // a mangled string with this many nodes is probably malformed... bail
+            return Err(Error::MaliciousInput);
+        }
+
         let allocator = self.storage.bump();
         let node = alloc::allocate(allocator, node);
         self.storage.push(node.into());
-        if self.storage.len() > (1 << 11) {
-            // a mangled string with this many nodes is probably malformed... bail
-            Err(Error::MaliciousInput)
-        } else {
-            let id = self.storage.len() - 1;
-            // SAFETY: we would oom before allocating usize::MAX nodes
-            let id = unsafe { NonMaxUsize::new_unchecked(id) };
-            Ok(NodeHandle::new(id))
-        }
+        let id = self.storage.len() - 1;
+        // SAFETY: we would oom before allocating usize::MAX nodes
+        let id = unsafe { NonMaxUsize::new_unchecked(id) };
+        Ok(NodeHandle::new(id))
     }
 }
 
