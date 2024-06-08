@@ -49,7 +49,6 @@ mod intermediate;
 
 use crate::{
     cache::NodeCache,
-    safe_write,
     Buffer,
     OutputFlags,
     Result,
@@ -120,7 +119,7 @@ use std::{
 fn output_space_if_necessary<B: Buffer>(ob: &mut Writer<'_, B>) -> Result<()> {
     if let Some(c) = ob.last() {
         if c.is_ascii_alphanumeric() || *c == b'>' {
-            safe_write!(ob, " ")?;
+            write!(ob, " ")?;
         }
     }
     Ok(())

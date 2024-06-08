@@ -14,7 +14,6 @@
 
 use crate::{
     nodes::Result,
-    safe_write,
     Buffer,
     OutputFlags,
     Writer,
@@ -73,7 +72,8 @@ impl SingleQualifier {
                 }
             }
         };
-        safe_write!(ob, "{qualifier}")
+        write!(ob, "{qualifier}")?;
+        Ok(())
     }
 }
 
@@ -114,7 +114,7 @@ impl Qualifiers {
             self.output_if_present(ob, flags, SingleQualifier::Restrict, space_before)?;
             let len_after = ob.len();
             if space_after && len_after > len_before {
-                safe_write!(ob, " ")?;
+                write!(ob, " ")?;
             }
         }
 
@@ -133,7 +133,7 @@ impl Qualifiers {
         }
 
         if needs_space {
-            safe_write!(ob, " ")?;
+            write!(ob, " ")?;
         }
 
         mask.output_single_qualifier(ob, flags)?;
@@ -212,7 +212,8 @@ impl CallingConv {
                 CallingConv::SwiftAsync => "__attribute__((__swiftasynccall__)) ",
             }
         };
-        safe_write!(ob, "{cc}")
+        write!(ob, "{cc}")?;
+        Ok(())
     }
 }
 

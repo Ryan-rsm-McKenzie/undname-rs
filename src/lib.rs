@@ -110,17 +110,6 @@ impl<B: Buffer> io::Write for Writer<'_, B> {
     }
 }
 
-macro_rules! safe_write {
-	($dst:expr, $($arg:tt)*) => {
-		match write!($dst, $($arg)*) {
-			Ok(ok) =>  Ok(ok),
-			Err(err) => Err($crate::Error::from(err)),
-		}
-	};
-}
-
-pub(crate) use safe_write;
-
 #[non_exhaustive]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

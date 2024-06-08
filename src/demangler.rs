@@ -88,7 +88,6 @@ use crate::{
         VcallThunkIdentifierNode,
         WriteableNode as _,
     },
-    safe_write,
     Buffer,
     Error,
     OutputFlags,
@@ -1636,9 +1635,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         // Render the parent symbol's name into a buffer.
         let mut ob = alloc::new_vec(self.allocator);
         let mut writer = Writer::new(&mut ob);
-        safe_write!(writer, "`")?;
+        write!(writer, "`")?;
         scope.output(&self.cache, &mut writer, self.flags)?;
-        safe_write!(writer, "'::`{number}'")?;
+        write!(writer, "'::`{number}'")?;
 
         identifier.name = ob.into_bump_slice().into();
         self.cache.intern(identifier)
@@ -2089,23 +2088,23 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     fn output_escaped_char<B: Buffer>(ob: &mut Writer<'_, B>, c: u32) -> Result<()> {
         match c {
-            0x00 => safe_write!(ob, "\\0"),  // nul
-            0x27 => safe_write!(ob, "\\\'"), // single quote
-            0x22 => safe_write!(ob, "\\\""), // double quote
-            0x5C => safe_write!(ob, "\\\\"), // backslash
-            0x07 => safe_write!(ob, "\\a"),  // bell
-            0x08 => safe_write!(ob, "\\b"),  // backspace
-            0x0C => safe_write!(ob, "\\f"),  // form feed
-            0x0A => safe_write!(ob, "\\n"),  // new line
-            0x0D => safe_write!(ob, "\\r"),  // carriage return
-            0x09 => safe_write!(ob, "\\t"),  // tab
-            0x0B => safe_write!(ob, "\\v"),  // vertical tab
+            0x00 => write!(ob, "\\0"),  // nul
+            0x27 => write!(ob, "\\\'"), // single quote
+            0x22 => write!(ob, "\\\""), // double quote
+            0x5C => write!(ob, "\\\\"), // backslash
+            0x07 => write!(ob, "\\a"),  // bell
+            0x08 => write!(ob, "\\b"),  // backspace
+            0x0C => write!(ob, "\\f"),  // form feed
+            0x0A => write!(ob, "\\n"),  // new line
+            0x0D => write!(ob, "\\r"),  // carriage return
+            0x09 => write!(ob, "\\t"),  // tab
+            0x0B => write!(ob, "\\v"),  // vertical tab
             _ if (0x20..=0x7E).contains(&c) => {
                 // SAFETY: we just verified c is printable ascii
                 let c = unsafe { char::from_u32_unchecked(c) };
-                safe_write!(ob, "{c}")
+                write!(ob, "{c}")
             }
-            _ => safe_write!(ob, "\\x{c:02X}"),
+            _ => write!(ob, "\\x{c:02X}"),
         }?;
         Ok(())
     }
