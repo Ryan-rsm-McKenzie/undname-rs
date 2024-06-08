@@ -49,6 +49,101 @@ fn test(mangled_name: &[u8], demangled_name: &[u8]) {
 }
 
 #[test]
+fn test_invalid_manglings() {
+    let test_invalid = |mangled_name: &[u8]| {
+        let result = crate::demangle(mangled_name.into(), Flags::default());
+        match result {
+            Err(_) => (),
+            Ok(demangled_name) => {
+                assert!(
+                    false,
+                    "'{}' <-- mangled string\n'Err(_)' <-- expected\n'{}' <-- actual",
+                    mangled_name.to_str_lossy(),
+                    demangled_name.to_str_lossy()
+                );
+            }
+        }
+    };
+
+    test_invalid(b"?ff@@$$J0YAXAU?$AS_@$0A@PEAU?$AS_@$0A@H@__clang@@@__clang@@@Z");
+    test_invalid(b"?f0@@YAXPEU?$AS_@$00$$CAD@__clang@@@Z");
+    test_invalid(b"?@@8");
+    test_invalid(b"??");
+    test_invalid(b"??0@");
+    test_invalid(b"? @@   YC@");
+    test_invalid(b"??B@$$J0");
+    test_invalid(b"??B@4");
+    test_invalid(b"?A?@?@???B@4D");
+    test_invalid(b"?A?@?@???B@4DD");
+    test_invalid(b"??$A@P15@");
+    test_invalid(b"??$A@P");
+    test_invalid(b"?A@@");
+    test_invalid(b"?A@@P");
+    test_invalid(b"?A@@4PQA@@");
+    test_invalid(b"??__E");
+    test_invalid(b"??__E@@");
+    test_invalid(b"??__E?Foo@@0HA@@");
+    test_invalid(b"??__E?i@C@@0HA@");
+    test_invalid(b"??__E?Foo@@YAXXZ");
+    test_invalid(b"?foo@@YAH0@Z");
+    test_invalid(b"?foo@@YAHH");
+    test_invalid(b"??8@8");
+    test_invalid(b"?B@?$?K$H?");
+    test_invalid(b"??C@$");
+    test_invalid(b"?x@@3PAW");
+    test_invalid(b"??}");
+    test_invalid(b"?foo@?$?_");
+    test_invalid(b"??_R4");
+    test_invalid(b"??_R4foo@@");
+    test_invalid(b"?foo@?$?BH@@QAEHXZ");
+    test_invalid(b"?foo@?$?0H@");
+    test_invalid(b"??_C@_0A@01234567@a");
+    test_invalid(b"??_C@_1A@01234567@a");
+    test_invalid(b"??_C@_0301234567@a");
+    test_invalid(b"??_C@_1301234567@a");
+    test_invalid(b"??_C@_0601234567@abcdefghijklmnopqrtsuvwxyzABCDEFGHIJKLMNOPQRTSUVWXYZabcdefghijklmnopqrtsuvwxyzABCDEFGHIJKLMNOPQRTSUVWXYZabcdefghijklmnopqrtsuvwxyz");
+    test_invalid(b"??_C@_12@?z");
+    test_invalid(b"??$foo@$1??_C@_02PCEFGMJL@hi?$AA@@");
+    test_invalid(b"??_C@");
+    test_invalid(b"??_C@_");
+    test_invalid(b"??_C@_3");
+    test_invalid(b"??_C@_01");
+    test_invalid(b"??_C@_0101234567@");
+    test_invalid(b"??_C@_0101234567@?");
+    test_invalid(b"??_C@_0101234567@?$");
+    test_invalid(b"??_C@_0101234567@?$za");
+    test_invalid(b"??_C@_0101234567@?$az");
+    test_invalid(b"??_C@_1201234567@a?$az");
+    test_invalid(b"??@foo");
+    test_invalid(b"?foo@@3YA@A");
+    test_invalid(b"?foo@@3Y~01KA");
+    test_invalid(b"?foo@@3Y0~1KA");
+    test_invalid(b"?x@@3PEAY02$$CRHEA");
+    test_invalid(b"?foo@@3_");
+    test_invalid(b"?foo@@3_XA");
+    test_invalid(b"?foo@@3Vbar");
+    test_invalid(b"?foo@@3Vbar@");
+    test_invalid(b"?foo@?A");
+    test_invalid(b"?foo@?");
+    test_invalid(b"?foo@??");
+    test_invalid(b"?foo@?XX?");
+    test_invalid(b"?foo@?A@?");
+    test_invalid(b"?foo@?Q@?");
+    test_invalid(b"?foo@?BQ@?");
+    test_invalid(b"?foo@?0?");
+    test_invalid(b"??_Sfoo@@1Abar@@");
+    test_invalid(b"??_Bfoo@@1");
+    test_invalid(b"??_R0");
+    test_invalid(b"??_R0H");
+    test_invalid(b"??_R0H@8foo");
+    test_invalid(b"??_R1012?3foo@@");
+    test_invalid(b"??_R2foo@@1");
+    test_invalid(b"??_A");
+    test_invalid(b"??_P");
+    test_invalid(b".?AUBase@@@8");
+}
+
+#[test]
 fn test_arg_qualifiers() {
     test(b"?foo@@YAXI@Z", b"void __cdecl foo(unsigned int)");
     test(b"?foo@@YAXN@Z  ", b"void __cdecl foo(double)");
