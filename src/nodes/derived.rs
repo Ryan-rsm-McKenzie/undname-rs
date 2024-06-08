@@ -1377,8 +1377,11 @@ impl WriteableNode for VariableSymbolNode {
             write!(ob, "static ")?;
         }
 
-        match self.name {
-            Some(VariableSymbolName::Qualified(name)) => {
+        let name = self
+            .name
+            .expect("VariableSymbolNode should have a name by this point");
+        match name {
+            VariableSymbolName::Qualified(name) => {
                 let r#type = (!flags.no_variable_type() && !flags.name_only())
                     .then(|| self.r#type.map(|x| x.resolve(cache)))
                     .flatten();
@@ -1391,7 +1394,7 @@ impl WriteableNode for VariableSymbolNode {
                     r#type.output_post(cache, ob, flags)?;
                 }
             }
-            Some(VariableSymbolName::TypeDescriptor) => {
+            VariableSymbolName::TypeDescriptor => {
                 if let Some(r#type) = self.r#type {
                     r#type.resolve(cache).output(cache, ob, flags)?;
                 }
@@ -1400,8 +1403,7 @@ impl WriteableNode for VariableSymbolNode {
                     write!(ob, "`RTTI Type Descriptor Name'")?;
                 }
             }
-            None => (),
-        };
+        }
 
         Ok(())
     }
