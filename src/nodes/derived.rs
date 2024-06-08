@@ -151,7 +151,7 @@ impl FunctionSignatureNode {
         cache: &NodeCache,
         ob: &mut W,
         flags: OutputFlags,
-        needs_special_handling: bool,
+        is_function_ptr: bool,
     ) -> Result<()> {
         if !flags.no_access_specifier() && !flags.name_only() {
             if self.function_class.is_public() {
@@ -177,14 +177,14 @@ impl FunctionSignatureNode {
             }
         }
 
-        if !flags.no_return_type() && (needs_special_handling || !flags.name_only()) {
+        if !flags.no_return_type() && (is_function_ptr || !flags.name_only()) {
             if let Some(return_type) = self.return_type.map(|x| x.resolve(cache)) {
                 return_type.output_pre(cache, ob, flags)?;
                 safe_write!(ob, " ")?;
             }
         }
 
-        if !needs_special_handling
+        if !is_function_ptr
             && !flags.no_calling_convention()
             && !flags.no_ms_keywords()
             && !flags.name_only()
@@ -202,11 +202,9 @@ impl FunctionSignatureNode {
         cache: &NodeCache,
         ob: &mut W,
         flags: OutputFlags,
-        needs_special_handling: bool,
+        is_function_ptr: bool,
     ) -> Result<()> {
-        if (needs_special_handling || !flags.name_only())
-            && !self.function_class.no_parameter_list()
-        {
+        if (is_function_ptr || !flags.name_only()) && !self.function_class.no_parameter_list() {
             safe_write!(ob, "(")?;
             if let Some(params) = self.params.map(|x| x.resolve(cache)) {
                 params.output(cache, ob, flags)?;
@@ -332,13 +330,13 @@ impl ThunkSignatureNode {
         cache: &NodeCache,
         ob: &mut W,
         flags: OutputFlags,
-        needs_special_handling: bool,
+        is_function_ptr: bool,
     ) -> Result<()> {
         if !flags.name_only() {
             safe_write!(ob, "[thunk]: ")?;
         }
         self.function_node
-            .do_output_pre(cache, ob, flags, needs_special_handling)
+            .do_output_pre(cache, ob, flags, is_function_ptr)
     }
 
     fn do_output_post<W: Writer>(
@@ -346,7 +344,7 @@ impl ThunkSignatureNode {
         cache: &NodeCache,
         ob: &mut W,
         flags: OutputFlags,
-        needs_special_handling: bool,
+        is_function_ptr: bool,
     ) -> Result<()> {
         let ThisAdjustor {
             static_offset,
@@ -366,7 +364,7 @@ impl ThunkSignatureNode {
         }
 
         self.function_node
-            .do_output_post(cache, ob, flags, needs_special_handling)
+            .do_output_post(cache, ob, flags, is_function_ptr)
     }
 }
 
