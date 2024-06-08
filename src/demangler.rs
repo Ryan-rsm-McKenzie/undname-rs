@@ -89,6 +89,7 @@ use crate::{
         WriteableNode as _,
     },
     safe_write,
+    Buffer,
     Error,
     OutputFlags,
     Result,
@@ -179,9 +180,10 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     pub(crate) fn parse_into(mut self, result: &mut BString) -> Result<()> {
         let ast = self.do_parse()?.resolve(&self.cache);
-        let mut ob: Vec<u8> = mem::take(result).into();
+        let mut ob = Writer {
+            buffer: &mut **result,
+        };
         ast.output(&self.cache, &mut ob, self.flags)?;
-        *result = ob.into();
         Ok(())
     }
 
@@ -979,9 +981,10 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         // Render this class template name into a string buffer so that we can
         // memorize it for the purpose of back-referencing.
         let mut ob = alloc::new_vec(self.allocator);
+        let mut writer = Writer::new(&mut ob);
         identifier
             .resolve(&self.cache)
-            .output(&self.cache, &mut ob, self.flags)?;
+            .output(&self.cache, &mut writer, self.flags)?;
         self.memorize_string(ob.into_bump_slice().into())
     }
 
@@ -1632,9 +1635,10 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
         // Render the parent symbol's name into a buffer.
         let mut ob = alloc::new_vec(self.allocator);
-        safe_write!(ob, "`")?;
-        scope.output(&self.cache, &mut ob, self.flags)?;
-        safe_write!(ob, "'::`{number}'")?;
+        let mut writer = Writer::new(&mut ob);
+        safe_write!(writer, "`")?;
+        scope.output(&self.cache, &mut writer, self.flags)?;
+        safe_write!(writer, "'::`{number}'")?;
 
         identifier.name = ob.into_bump_slice().into();
         self.cache.intern(identifier)
@@ -1675,6 +1679,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         }
 
         let mut ob = alloc::new_vec(self.allocator);
+        let mut writer = Writer::new(&mut ob);
         let (char, is_truncated) = if is_wchar_t {
             let char = CharKind::Wchar;
             let is_truncated = string_byte_len > 64;
@@ -1685,7 +1690,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 }
                 let w = self.demangle_wchar_literal()?;
                 if string_byte_len != 2 || is_truncated {
-                    Self::output_escaped_char(&mut ob, w.into())?;
+                    Self::output_escaped_char(&mut writer, w.into())?;
                 }
                 string_byte_len = string_byte_len.saturating_sub(2);
             }
@@ -1720,7 +1725,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 let next_char = Self::decode_multi_byte_char(&string_bytes, char_index, char_bytes)
                     .ok_or(Error::InvalidStringLiteral)?;
                 if char_index + 1 < num_chars || is_truncated {
-                    Self::output_escaped_char(&mut ob, next_char)?;
+                    Self::output_escaped_char(&mut writer, next_char)?;
                 }
             }
 
@@ -2082,7 +2087,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         }
     }
 
-    fn output_escaped_char<W: Writer>(ob: &mut W, c: u32) -> Result<()> {
+    fn output_escaped_char<B: Buffer>(ob: &mut Writer<'_, B>, c: u32) -> Result<()> {
         match c {
             0x00 => safe_write!(ob, "\\0"),  // nul
             0x27 => safe_write!(ob, "\\\'"), // single quote

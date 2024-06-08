@@ -50,6 +50,7 @@ mod intermediate;
 use crate::{
     cache::NodeCache,
     safe_write,
+    Buffer,
     OutputFlags,
     Result,
     Writer,
@@ -111,9 +112,12 @@ pub(crate) use intermediate::{
     SymbolNode,
     TypeNode,
 };
-use std::mem;
+use std::{
+    io::Write as _,
+    mem,
+};
 
-fn output_space_if_necessary<W: Writer>(ob: &mut W) -> Result<()> {
+fn output_space_if_necessary<B: Buffer>(ob: &mut Writer<'_, B>) -> Result<()> {
     if let Some(c) = ob.last() {
         if c.is_ascii_alphanumeric() || *c == b'>' {
             safe_write!(ob, " ")?;
@@ -123,14 +127,19 @@ fn output_space_if_necessary<W: Writer>(ob: &mut W) -> Result<()> {
 }
 
 pub(crate) trait WriteableNode {
-    fn output<W: Writer>(&self, cache: &NodeCache, ob: &mut W, flags: OutputFlags) -> Result<()>;
+    fn output<B: Buffer>(
+        &self,
+        cache: &NodeCache,
+        ob: &mut Writer<'_, B>,
+        flags: OutputFlags,
+    ) -> Result<()>;
 }
 
 trait WriteableTypeNode {
-    fn output_pair<W: Writer>(
+    fn output_pair<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut W,
+        ob: &mut Writer<'_, B>,
         flags: OutputFlags,
     ) -> Result<()> {
         self.output_pre(cache, ob, flags)?;
@@ -138,17 +147,17 @@ trait WriteableTypeNode {
         Ok(())
     }
 
-    fn output_pre<W: Writer>(
+    fn output_pre<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut W,
+        ob: &mut Writer<'_, B>,
         flags: OutputFlags,
     ) -> Result<()>;
 
-    fn output_post<W: Writer>(
+    fn output_post<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut W,
+        ob: &mut Writer<'_, B>,
         flags: OutputFlags,
     ) -> Result<()>;
 }

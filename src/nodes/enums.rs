@@ -15,9 +15,11 @@
 use crate::{
     nodes::Result,
     safe_write,
+    Buffer,
     OutputFlags,
     Writer,
 };
+use std::io::Write as _;
 
 bitflags::bitflags! {
     // Storage classes
@@ -52,7 +54,11 @@ enum SingleQualifier {
 }
 
 impl SingleQualifier {
-    fn output_single_qualifier<W: Writer>(self, ob: &mut W, flags: OutputFlags) -> Result<()> {
+    fn output_single_qualifier<B: Buffer>(
+        self,
+        ob: &mut Writer<'_, B>,
+        flags: OutputFlags,
+    ) -> Result<()> {
         let qualifier = match self {
             Self::Const => "const",
             Self::Volatile => "volatile",
@@ -92,9 +98,9 @@ impl Qualifiers {
         self.contains(Self::Q_Restrict)
     }
 
-    pub(super) fn output<W: Writer>(
+    pub(super) fn output<B: Buffer>(
         self,
-        ob: &mut W,
+        ob: &mut Writer<'_, B>,
         flags: OutputFlags,
         space_before: bool,
         space_after: bool,
@@ -115,9 +121,9 @@ impl Qualifiers {
         Ok(())
     }
 
-    fn output_if_present<W: Writer>(
+    fn output_if_present<B: Buffer>(
         self,
-        ob: &mut W,
+        ob: &mut Writer<'_, B>,
         flags: OutputFlags,
         mask: SingleQualifier,
         needs_space: bool,
@@ -173,7 +179,11 @@ pub(crate) enum CallingConv {
 }
 
 impl CallingConv {
-    pub(super) fn output<W: Writer>(self, ob: &mut W, flags: OutputFlags) -> Result<()> {
+    pub(super) fn output<B: Buffer>(
+        self,
+        ob: &mut Writer<'_, B>,
+        flags: OutputFlags,
+    ) -> Result<()> {
         super::output_space_if_necessary(ob)?;
         let cc = if flags.no_leading_underscores() {
             match self {

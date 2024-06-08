@@ -48,12 +48,12 @@ use std::io::{
 
 type OutputFlags = Flags;
 
-trait Writer: Write {
+trait Buffer: Write {
     fn last(&self) -> Option<&u8>;
     fn len(&self) -> usize;
 }
 
-impl Writer for Vec<u8> {
+impl Buffer for Vec<u8> {
     fn last(&self) -> Option<&u8> {
         self.as_slice().last()
     }
@@ -63,27 +63,57 @@ impl Writer for Vec<u8> {
     }
 }
 
-impl<'bump> Writer for BumpVec<'bump, u8> {
+impl<'bump> Buffer for BumpVec<'bump, u8> {
     fn last(&self) -> Option<&u8> {
         self.as_slice().last()
     }
 
     fn len(&self) -> usize {
         self.len()
+    }
+}
+
+struct Writer<'buffer, B: Buffer> {
+    buffer: &'buffer mut B,
+}
+
+impl<'buffer, B: Buffer> Writer<'buffer, B> {
+    fn new(buffer: &'buffer mut B) -> Self {
+        Self { buffer }
+    }
+
+    fn last(&self) -> Option<&u8> {
+        self.buffer.last()
+    }
+
+    fn len(&self) -> usize {
+        self.buffer.len()
+    }
+}
+
+impl<B: Buffer> io::Write for Writer<'_, B> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let final_len = buf.len().saturating_add(self.buffer.len());
+        if final_len > (1 << 20) {
+            // a demangled string that's over a mb in length? bail
+            Err(io::Error::new(
+                io::ErrorKind::OutOfMemory,
+                Error::MaliciousInput,
+            ))
+        } else {
+            self.buffer.write(buf)
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.buffer.flush()
     }
 }
 
 macro_rules! safe_write {
 	($dst:expr, $($arg:tt)*) => {
 		match write!($dst, $($arg)*) {
-			Ok(ok) =>  {
-				if $dst.len() > (1 << 20) {
-					// a demangled string that's over a mb in length? bail
-					Err($crate::Error::MaliciousInput)
-				} else {
-					Ok(ok)
-				}
-			}
+			Ok(ok) =>  Ok(ok),
 			Err(err) => Err($crate::Error::from(err)),
 		}
 	};
