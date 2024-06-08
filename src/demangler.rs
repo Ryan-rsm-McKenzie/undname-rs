@@ -83,6 +83,7 @@ use crate::{
         TemplateParameterReferenceNode,
         TemplateParameters,
         ThunkSignatureNode,
+        VariableSymbolName,
         VariableSymbolNode,
         VcallThunkIdentifierNode,
         WriteableNode as _,
@@ -309,18 +310,15 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         self.mangled_name
             .try_consume_byte(b'.')
             .ok_or(Error::InvalidTypeinfoName)?;
-        let t = self.demangle_type(QualifierMangleMode::Result)?;
+        let r#type = Some(self.demangle_type(QualifierMangleMode::Result)?);
         if !self.mangled_name.is_empty() {
             return Err(Error::InvalidTypeinfoName);
         }
-
-        let variable = VariableSymbolNode::synthesize(
-            self.allocator,
-            &mut self.cache,
-            t,
-            b"`RTTI Type Descriptor Name'".into(),
-        )?;
-        self.cache.intern(variable)
+        self.cache.intern(VariableSymbolNode {
+            name: Some(VariableSymbolName::TypeDescriptor),
+            sc: None,
+            r#type,
+        })
     }
 
     // <type-encoding> ::= <storage-class> <variable-type>
@@ -1472,7 +1470,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             name: variable_name,
             ..Default::default()
         })?;
-        let name = Some(self.demangle_name_scope_chain(ni.into())?);
+        let name = Some(self.demangle_name_scope_chain(ni.into())?.into());
         if self.mangled_name.try_consume_byte(b'8').is_some() {
             self.cache.intern(VariableSymbolNode {
                 name,
@@ -1508,7 +1506,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             flags,
             ..Default::default()
         })?;
-        let name = Some(self.demangle_name_scope_chain(rbcdn.into())?);
+        let name = Some(self.demangle_name_scope_chain(rbcdn.into())?.into());
         self.mangled_name
             .try_consume_byte(b'8')
             .ok_or(Error::InvalidRttiBaseClassDescriptorNode)?;

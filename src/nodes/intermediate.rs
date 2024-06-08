@@ -47,6 +47,7 @@ use crate::{
         TagTypeNode,
         TemplateParameterReferenceNode,
         ThunkSignatureNode,
+        VariableSymbolName,
         VariableSymbolNode,
         VcallThunkIdentifierNode,
         WriteableNode,
@@ -768,7 +769,13 @@ impl<'storage, 'alloc: 'storage> SymbolNodeConst<'storage, 'alloc> {
             Self::SpecialTableSymbol(x) => Some(x.name),
             Self::LocalStaticGuardVariable(x) => Some(x.name),
             Self::EncodedStringLiteral(x) => x.name,
-            Self::VariableSymbol(x) => x.name,
+            Self::VariableSymbol(x) => {
+                if let Some(VariableSymbolName::Qualified(name)) = x.name {
+                    Some(name)
+                } else {
+                    None
+                }
+            }
             Self::FunctionSymbol(x) => x.name,
         }
     }
@@ -817,7 +824,7 @@ impl<'storage, 'alloc: 'storage> SymbolNodeMut<'storage, 'alloc> {
             Self::SpecialTableSymbol(x) => x.name = name,
             Self::LocalStaticGuardVariable(x) => x.name = name,
             Self::EncodedStringLiteral(x) => x.name = Some(name),
-            Self::VariableSymbol(x) => x.name = Some(name),
+            Self::VariableSymbol(x) => x.name = Some(VariableSymbolName::Qualified(name)),
             Self::FunctionSymbol(x) => x.name = Some(name),
         }
     }

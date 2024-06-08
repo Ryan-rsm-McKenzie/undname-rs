@@ -3549,4 +3549,5 @@ fn test_name_only() {
         b"??$unaligned_x@PFAH@@3PFAHA",
         b"unaligned_x<int __unaligned *>",
     );
+    test_option(b".?AVtype_info@@", b"type_info");
 }

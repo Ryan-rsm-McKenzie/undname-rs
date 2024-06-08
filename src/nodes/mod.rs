@@ -80,6 +80,7 @@ pub(crate) use derived::{
     TemplateParameterReferenceNode,
     TemplateParameters,
     ThunkSignatureNode,
+    VariableSymbolName,
     VariableSymbolNode,
     VcallThunkIdentifierNode,
 };

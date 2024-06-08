@@ -1168,9 +1168,21 @@ impl<'alloc> WriteableNode for EncodedStringLiteralNode<'alloc> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum VariableSymbolName {
+    Qualified(NodeHandle<QualifiedName>),
+    TypeDescriptor,
+}
+
+impl From<NodeHandle<QualifiedName>> for VariableSymbolName {
+    fn from(value: NodeHandle<QualifiedName>) -> Self {
+        Self::Qualified(value)
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 pub(crate) struct VariableSymbolNode {
-    pub(crate) name: Option<NodeHandle<QualifiedName>>,
+    pub(crate) name: Option<VariableSymbolName>,
     pub(crate) sc: Option<StorageClass>,
     pub(crate) r#type: Option<NodeHandle<ITypeNode>>,
 }
@@ -1188,7 +1200,7 @@ impl VariableSymbolNode {
         };
 
         Ok(Self {
-            name: Some(name),
+            name: Some(name.into()),
             sc: None,
             r#type: Some(r#type),
         })
@@ -1213,20 +1225,31 @@ impl WriteableNode for VariableSymbolNode {
             safe_write!(ob, "static ")?;
         }
 
-        let r#type = (!flags.no_variable_type() && !flags.name_only())
-            .then(|| self.r#type.map(|x| x.resolve(cache)))
-            .flatten();
-
-        if let Some(r#type) = r#type {
-            r#type.output_pre(cache, ob, flags)?;
-            super::output_space_if_necessary(ob)?;
-        }
-        if let Some(name) = self.name {
-            name.resolve(cache).output(cache, ob, flags)?;
-        }
-        if let Some(r#type) = r#type {
-            r#type.output_post(cache, ob, flags)?;
-        }
+        match self.name {
+            Some(VariableSymbolName::Qualified(name)) => {
+                let r#type = (!flags.no_variable_type() && !flags.name_only())
+                    .then(|| self.r#type.map(|x| x.resolve(cache)))
+                    .flatten();
+                if let Some(r#type) = r#type {
+                    r#type.output_pre(cache, ob, flags)?;
+                    super::output_space_if_necessary(ob)?;
+                }
+                name.resolve(cache).output(cache, ob, flags)?;
+                if let Some(r#type) = r#type {
+                    r#type.output_post(cache, ob, flags)?;
+                }
+            }
+            Some(VariableSymbolName::TypeDescriptor) => {
+                if let Some(r#type) = self.r#type {
+                    r#type.resolve(cache).output(cache, ob, flags)?;
+                }
+                if !flags.name_only() {
+                    super::output_space_if_necessary(ob)?;
+                    safe_write!(ob, "`RTTI Type Descriptor Name'")?;
+                }
+            }
+            None => (),
+        };
 
         Ok(())
     }
