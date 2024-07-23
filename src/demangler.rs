@@ -791,6 +791,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 let _ = self.demangle_type(QualifierMangleMode::Drop)?;
             }
 
+            #[allow(clippy::redundant_closure_for_method_calls)]
             if self.mangled_name.try_consume_str(b"$$Y").is_some() {
                 // Template alias
                 nodes.push(self.demangle_fully_qualified_type_name()?.into());
