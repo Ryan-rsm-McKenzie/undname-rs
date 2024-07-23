@@ -869,18 +869,25 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                     ..Default::default()
                 };
                 nodes.push(self.cache.intern(tprn)?.into());
-            } else if let Some(string) = self
-                .mangled_name
-                .try_consume_str(b"$F")
-                .or_else(|| self.mangled_name.try_consume_str(b"$G"))
-            {
+            } else if let Some(string) = if is_auto_nttp {
+                self.mangled_name
+                    .try_consume_str(b"F")
+                    .or_else(|| self.mangled_name.try_consume_str(b"G"))
+                    .map(|x| x.as_slice())
+            } else {
+                self.mangled_name
+                    .try_consume_str(b"$F")
+                    .or_else(|| self.mangled_name.try_consume_str(b"$G"))
+                    .map(|x| x.as_slice())
+            } {
                 // Data member pointer.
                 let mut tprn = TemplateParameterReferenceNode {
                     is_member_pointer: true,
                     ..Default::default()
                 };
 
-                let inheritance_specifier = string[1];
+                // SAFETY: we only match on strings of at least length 1
+                let inheritance_specifier = unsafe { string.last().unwrap_unchecked() };
                 let count = match inheritance_specifier {
                     b'G' => 3,
                     b'F' => 2,

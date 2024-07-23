@@ -601,6 +601,44 @@ fn test_auto_templates() {
         b"??0?$AutoNTTPClass@$MH0A@$M_N0A@$MD0GB@@@QEAA@XZ",
         b"public: __cdecl AutoNTTPClass<0, 0, 97>::AutoNTTPClass<0, 0, 97>(void)",
     );
+    test(
+        b"??0?$AutoNTTPClass@$M$$T0A@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<0>::AutoNTTPClass<0>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$0A@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<0>::AutoNTTPClass<0>(void)",
+    );
+    test(b"??0?$AutoNTTPClass@$MP8S@@EAAXXZ1?f@1@QEAAXXZ@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<&public: void __cdecl S::f(void)>::AutoNTTPClass<&public: void __cdecl S::f(void)>(void)");
+    test(b"??0?$AutoNTTPClass@$1?f@S@@QEAAXXZ@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<&public: void __cdecl S::f(void)>::AutoNTTPClass<&public: void __cdecl S::f(void)>(void)");
+    test(b"??0?$AutoNTTPClass@$MP8M@@EAAXXZH?f@1@QEAAXXZA@@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<{public: void __cdecl M::f(void), 0}>::AutoNTTPClass<{public: void __cdecl M::f(void), 0}>(void)");
+    test(b"??0?$AutoNTTPClass@$H?f@M@@QEAAXXZA@@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<{public: void __cdecl M::f(void), 0}>::AutoNTTPClass<{public: void __cdecl M::f(void), 0}>(void)");
+    test(b"??0?$AutoNTTPClass@$MP8V@@EAAXXZI?f@1@QEAAXXZA@A@@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<{public: void __cdecl V::f(void), 0, 0}>::AutoNTTPClass<{public: void __cdecl V::f(void), 0, 0}>(void)");
+    test(b"??0?$AutoNTTPClass@$I?f@V@@QEAAXXZA@A@@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<{public: void __cdecl V::f(void), 0, 0}>::AutoNTTPClass<{public: void __cdecl V::f(void), 0, 0}>(void)");
+    test(
+        b"??0?$AutoNTTPClass@$MPEQS@@H07@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<8>::AutoNTTPClass<8>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$07@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<8>::AutoNTTPClass<8>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$MPEQM@@H0M@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<12>::AutoNTTPClass<12>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$0M@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<12>::AutoNTTPClass<12>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$MPEQV@@HFBA@A@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<{16, 0}>::AutoNTTPClass<{16, 0}>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$FBA@A@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<{16, 0}>::AutoNTTPClass<{16, 0}>(void)",
+    );
 }
 
 #[test]
