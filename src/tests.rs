@@ -540,6 +540,70 @@ fn test_arg_qualifiers() {
 }
 
 #[test]
+fn test_auto_templates() {
+    test(
+        b"??0?$AutoNTTPClass@$MPEAH1?i@@3HA@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<&int i>::AutoNTTPClass<&int i>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$1?i@@3HA@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<&int i>::AutoNTTPClass<&int i>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$MPEAH1?i@@3HA$MPEAH1?j@@3HA@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<&int i, &int j>::AutoNTTPClass<&int i, &int j>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$1?i@@3HA$1?j@@3HA@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<&int i, &int j>::AutoNTTPClass<&int i, &int j>(void)",
+    );
+    test(b"??0?$AutoNTTPClass@$MP6AHXZ1?Func@@YAHXZ@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<&int __cdecl Func(void)>::AutoNTTPClass<&int __cdecl Func(void)>(void)");
+    test(b"??0?$AutoNTTPClass@$1?Func@@YAHXZ@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<&int __cdecl Func(void)>::AutoNTTPClass<&int __cdecl Func(void)>(void)");
+    test(b"??0?$AutoNTTPClass@$MP6AHXZ1?Func@@YAHXZ$MP6AHXZ1?Func2@@YAHXZ@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<&int __cdecl Func(void), &int __cdecl Func2(void)>::AutoNTTPClass<&int __cdecl Func(void), &int __cdecl Func2(void)>(void)");
+    test(b"??0?$AutoNTTPClass@$1?Func@@YAHXZ$1?Func2@@YAHXZ@@QEAA@XZ", b"public: __cdecl AutoNTTPClass<&int __cdecl Func(void), &int __cdecl Func2(void)>::AutoNTTPClass<&int __cdecl Func(void), &int __cdecl Func2(void)>(void)");
+    test(
+        b"??$AutoFunc@$MPEAH1?i@@3HA@@YA?A?<auto>@@XZ",
+        b"<auto> __cdecl AutoFunc<&int i>(void)",
+    );
+    test(
+        b"??$AutoFunc@$1?i@@3HA@@YA?A?<auto>@@XZ",
+        b"<auto> __cdecl AutoFunc<&int i>(void)",
+    );
+    test(
+        b"??$AutoFunc@$MP6AHXZ1?Func@@YAHXZ@@YA?A?<auto>@@XZ",
+        b"<auto> __cdecl AutoFunc<&int __cdecl Func(void)>(void)",
+    );
+    test(
+        b"??$AutoFunc@$1?Func@@YAHXZ@@YA?A?<auto>@@XZ",
+        b"<auto> __cdecl AutoFunc<&int __cdecl Func(void)>(void)",
+    );
+    test(
+        b"??$AutoFunc@$MH00@@YA?A?<auto>@@XZ",
+        b"<auto> __cdecl AutoFunc<1>(void)",
+    );
+    test(
+        b"??$AutoFunc@$00@@YA?A?<auto>@@XZ",
+        b"<auto> __cdecl AutoFunc<1>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$0A@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<0>::AutoNTTPClass<0>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$MH0A@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<0>::AutoNTTPClass<0>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$0A@$0A@$0GB@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<0, 0, 97>::AutoNTTPClass<0, 0, 97>(void)",
+    );
+    test(
+        b"??0?$AutoNTTPClass@$MH0A@$M_N0A@$MD0GB@@@QEAA@XZ",
+        b"public: __cdecl AutoNTTPClass<0, 0, 97>::AutoNTTPClass<0, 0, 97>(void)",
+    );
+}
+
+#[test]
 fn test_back_references() {
     test(
         b"?f1@@YAXPBD0@Z",

@@ -783,6 +783,14 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 return Err(Error::InvalidTemplateParameterList);
             }
 
+            // <auto-nttp> ::= $ M <type> <nttp>
+            let is_auto_nttp = self.mangled_name.try_consume_str(b"$M").is_some();
+            if is_auto_nttp {
+                // The deduced type of the auto NTTP parameter isn't printed so
+                // we want to ignore the AST created from demangling the type.
+                let _ = self.demangle_type(QualifierMangleMode::Drop)?;
+            }
+
             if self.mangled_name.try_consume_str(b"$$Y").is_some() {
                 // Template alias
                 nodes.push(self.demangle_fully_qualified_type_name()?.into());
@@ -792,13 +800,21 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             } else if self.mangled_name.try_consume_str(b"$$C").is_some() {
                 // Type has qualifiers.
                 nodes.push(self.demangle_type(QualifierMangleMode::Mangle)?.into());
-            } else if let Some(string) = self
-                .mangled_name
-                .try_consume_str(b"$1")
-                .or_else(|| self.mangled_name.try_consume_str(b"$H"))
-                .or_else(|| self.mangled_name.try_consume_str(b"$I"))
-                .or_else(|| self.mangled_name.try_consume_str(b"$J"))
-            {
+            } else if let Some(string) = if is_auto_nttp {
+                self.mangled_name
+                    .try_consume_str(b"1")
+                    .or_else(|| self.mangled_name.try_consume_str(b"H"))
+                    .or_else(|| self.mangled_name.try_consume_str(b"I"))
+                    .or_else(|| self.mangled_name.try_consume_str(b"J"))
+                    .map(|x| x.as_slice())
+            } else {
+                self.mangled_name
+                    .try_consume_str(b"$1")
+                    .or_else(|| self.mangled_name.try_consume_str(b"$H"))
+                    .or_else(|| self.mangled_name.try_consume_str(b"$I"))
+                    .or_else(|| self.mangled_name.try_consume_str(b"$J"))
+                    .map(|x| x.as_slice())
+            } {
                 // Pointer to member
                 let mut tprn = TemplateParameterReferenceNode {
                     symbol: if self.mangled_name.starts_with(b"?") {
@@ -825,7 +841,8 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 // H - multiple inheritance     <name> <number>
                 // I - virtual inheritance      <name> <number> <number>
                 // J - unspecified inheritance  <name> <number> <number> <number>
-                let inheritance_specifier = string[1];
+                // SAFETY: we only match on strings of at least length 1
+                let inheritance_specifier = unsafe { string.last().unwrap_unchecked() };
                 let count = match inheritance_specifier {
                     b'1' => 0,
                     b'H' => 1,
@@ -877,7 +894,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 }
 
                 nodes.push(self.cache.intern(tprn)?.into());
-            } else if self.mangled_name.try_consume_str(b"$0").is_some() {
+            } else if if is_auto_nttp {
+                self.mangled_name.try_consume_str(b"0").is_some()
+            } else {
+                self.mangled_name.try_consume_str(b"$0").is_some()
+            } {
                 // Integral non-type template parameter
                 let (value, is_negative) = self.demangle_number()?;
                 let node = self
