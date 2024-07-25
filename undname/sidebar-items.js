@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Error"],"fn":["demangle","demangle_into"],"struct":["BStr","BString","Flags"],"trait":["ByteSlice","ByteVec"],"type":["Result"]};
