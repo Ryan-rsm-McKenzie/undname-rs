@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bstr::ByteSlice as _;
 use clap::Parser;
 use undname::Flags;
 
@@ -90,9 +89,9 @@ fn main() {
 
     let mangled_string = cli.mangled_string;
     println!("{mangled_string}");
-    let result = undname::demangle(mangled_string.as_bytes().into(), flags);
+    let result = undname::demangle(&mangled_string, flags);
     match result {
-        Ok(ok) => println!("{}", ok.to_str_lossy()),
+        Ok(ok) => println!("{ok}"),
         Err(_) => println!("error: Invalid mangled name"),
     }
 }

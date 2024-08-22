@@ -36,10 +36,8 @@ use crate::{
         TagType,
         VariableSymbol,
     },
-    extensions::{
-        BStrExt as _,
-        U8Ext as _,
-    },
+    extensions::CharExt as _,
+    mangled_string::MangledString,
     nodes::{
         ArrayTypeNode,
         CallingConv,
@@ -95,11 +93,6 @@ use crate::{
     Writer,
 };
 use arrayvec::ArrayVec;
-use bstr::{
-    BStr,
-    BString,
-    ByteSlice as _,
-};
 use bumpalo::Bump;
 use smallvec::SmallVec;
 use std::{
@@ -155,7 +148,7 @@ enum FunctionIdentifierCodeGroup {
 }
 
 pub(crate) struct Demangler<'alloc, 'string: 'alloc> {
-    mangled_name: &'string BStr,
+    mangled_name: MangledString<'string>,
     allocator: &'alloc Bump,
     cache: NodeCache<'alloc>,
     backrefs: BackrefContext,
@@ -164,12 +157,12 @@ pub(crate) struct Demangler<'alloc, 'string: 'alloc> {
 
 impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     pub(crate) fn new(
-        mangled_name: &'string BStr,
+        mangled_name: &'string str,
         flags: OutputFlags,
         allocator: &'alloc Bump,
     ) -> Self {
         Self {
-            mangled_name,
+            mangled_name: MangledString::new(mangled_name),
             allocator,
             cache: NodeCache::new(allocator),
             backrefs: BackrefContext::default(),
@@ -177,12 +170,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         }
     }
 
-    pub(crate) fn parse_into(mut self, result: &mut BString) -> Result<()> {
+    pub(crate) fn parse_into(mut self, result: &mut String) -> Result<()> {
         let ast = self.do_parse()?.resolve(&self.cache);
-        let mut ob = Writer {
-            buffer: &mut **result,
+        let mut ob = Writer::<Vec<u8>> {
+            buffer: mem::take(result).into(),
         };
         ast.output(&self.cache, &mut ob, self.flags)?;
+        *result = String::from_utf8(ob.buffer)?;
         Ok(())
     }
 
@@ -190,13 +184,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         // Typeinfo names are strings stored in RTTI data. They're not symbol names.
         // It's still useful to demangle them. They're the only demangled entity
         // that doesn't start with a "?" but a ".".
-        if self.mangled_name.starts_with(b".") {
+        if self.mangled_name.starts_with(".") {
             self.demangle_typeinfo_name().map(Into::into)
-        } else if self.mangled_name.starts_with(b"??@") {
+        } else if self.mangled_name.starts_with("??@") {
             self.demangle_md5_name().map(Into::into)
         } else {
             self.mangled_name
-                .try_consume_byte(b'?')
+                .try_consume_char('?')
                 .ok_or(Error::Io(io::ErrorKind::UnexpectedEof.into()))?;
             // ?$ is a template instantiation, but all other names that start with ? are
             // operators / special names.
@@ -214,11 +208,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     ) -> Result<NodeHandle<ISymbolNode>> {
         let c = self
             .mangled_name
-            .first()
+            .first_char()
             .ok_or(Error::InvalidEncodedSymbol)?;
 
         // Read a variable.
-        if matches!(c, b'0' | b'1' | b'2' | b'3' | b'4') {
+        if matches!(c, '0' | '1' | '2' | '3' | '4') {
             let sc = self.demangle_variable_storage_class()?;
             let result = self.demangle_variable_encoding(sc)?;
             return Ok(result.into());
@@ -265,21 +259,21 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     }
 
     fn demangle_md5_name(&mut self) -> Result<NodeHandle<Md5Symbol>> {
-        let mangled_copy = self.mangled_name;
+        let mangled_copy = self.mangled_name.as_str();
 
         // This is an MD5 mangled name. We can't demangle it, just return the mangled name.
         // An MD5 mangled name is ??@ followed by 32 characters and a terminating @.
         let mut stop = {
             let prefix = self
                 .mangled_name
-                .try_consume_str(b"??@")
+                .try_consume_str("??@")
                 .ok_or(Error::InvalidMd5Name)?;
             let stop = self
                 .mangled_name
-                .find_byte(b'@')
+                .find_char('@')
                 .ok_or(Error::InvalidMd5Name)?;
             self.mangled_name
-                .try_consume_n(stop + 1)
+                .try_consume_n_bytes(stop + 1)
                 .ok_or(Error::InvalidMd5Name)?;
             stop + prefix.len()
         };
@@ -294,7 +288,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         //    instead of_CT??@...@8 with just one MD5 name. Since we don't yet
         //    demangle catchable types anywhere, this isn't handled for MD5 names
         //    either.
-        if let Some(postfix) = self.mangled_name.try_consume_str(b"??_R4@") {
+        if let Some(postfix) = self.mangled_name.try_consume_str("??_R4@") {
             stop += postfix.len();
         }
 
@@ -309,7 +303,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     fn demangle_typeinfo_name(&mut self) -> Result<NodeHandle<VariableSymbol>> {
         self.mangled_name
-            .try_consume_byte(b'.')
+            .try_consume_char('.')
             .ok_or(Error::InvalidTypeinfoName)?;
         let r#type = Some(self.demangle_type(QualifierMangleMode::Result)?);
         if !self.mangled_name.is_empty() {
@@ -366,7 +360,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     fn demangle_function_encoding(&mut self) -> Result<NodeHandle<FunctionSymbol>> {
         let mut extra_flags = FuncClass::FC_None;
-        if self.mangled_name.try_consume_str(b"$$J0").is_some() {
+        if self.mangled_name.try_consume_str("$$J0").is_some() {
             extra_flags |= FuncClass::FC_ExternC;
         }
 
@@ -424,13 +418,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     #[must_use]
     fn demangle_pointer_ext_qualifiers(&mut self) -> Qualifiers {
         let mut quals = Qualifiers::Q_None;
-        if self.mangled_name.try_consume_byte(b'E').is_some() {
+        if self.mangled_name.try_consume_char('E').is_some() {
             quals |= Qualifiers::Q_Pointer64;
         }
-        if self.mangled_name.try_consume_byte(b'I').is_some() {
+        if self.mangled_name.try_consume_char('I').is_some() {
             quals |= Qualifiers::Q_Restrict;
         }
-        if self.mangled_name.try_consume_byte(b'F').is_some() {
+        if self.mangled_name.try_consume_char('F').is_some() {
             quals |= Qualifiers::Q_Unaligned;
         }
         quals
@@ -442,7 +436,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         let quals = match qmm {
             QualifierMangleMode::Mangle => self.demangle_qualifiers()?.0,
             QualifierMangleMode::Result => {
-                if self.mangled_name.try_consume_byte(b'?').is_some() {
+                if self.mangled_name.try_consume_char('?').is_some() {
                     self.demangle_qualifiers()?.0
                 } else {
                     Qualifiers::Q_None
@@ -466,9 +460,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         } else if self.mangled_name.is_array_type() {
             self.demangle_array_type().map(Into::into)
         } else if self.mangled_name.is_function_type() {
-            if self.mangled_name.try_consume_str(b"$$A8@@").is_some() {
+            if self.mangled_name.try_consume_str("$$A8@@").is_some() {
                 self.demangle_function_type(true).map(Into::into)
-            } else if self.mangled_name.try_consume_str(b"$$A6").is_some() {
+            } else if self.mangled_name.try_consume_str("$$A6").is_some() {
                 self.demangle_function_type(false).map(Into::into)
             } else {
                 Err(Error::InvalidType)
@@ -484,7 +478,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     }
 
     fn demangle_primitive_type(&mut self) -> Result<NodeHandle<PrimitiveType>> {
-        let kind = if self.mangled_name.try_consume_str(b"$$T").is_some() {
+        let kind = if self.mangled_name.try_consume_str("$$T").is_some() {
             PrimitiveKind::Nullptr
         } else {
             let f = self
@@ -492,32 +486,32 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 .try_consume()
                 .ok_or(Error::InvalidPrimitiveType)?;
             match f {
-                b'X' => PrimitiveKind::Void,
-                b'D' => PrimitiveKind::Char,
-                b'C' => PrimitiveKind::Schar,
-                b'E' => PrimitiveKind::Uchar,
-                b'F' => PrimitiveKind::Short,
-                b'G' => PrimitiveKind::Ushort,
-                b'H' => PrimitiveKind::Int,
-                b'I' => PrimitiveKind::Uint,
-                b'J' => PrimitiveKind::Long,
-                b'K' => PrimitiveKind::Ulong,
-                b'M' => PrimitiveKind::Float,
-                b'N' => PrimitiveKind::Double,
-                b'O' => PrimitiveKind::Ldouble,
-                b'_' => {
+                'X' => PrimitiveKind::Void,
+                'D' => PrimitiveKind::Char,
+                'C' => PrimitiveKind::Schar,
+                'E' => PrimitiveKind::Uchar,
+                'F' => PrimitiveKind::Short,
+                'G' => PrimitiveKind::Ushort,
+                'H' => PrimitiveKind::Int,
+                'I' => PrimitiveKind::Uint,
+                'J' => PrimitiveKind::Long,
+                'K' => PrimitiveKind::Ulong,
+                'M' => PrimitiveKind::Float,
+                'N' => PrimitiveKind::Double,
+                'O' => PrimitiveKind::Ldouble,
+                '_' => {
                     let f = self
                         .mangled_name
                         .try_consume()
                         .ok_or(Error::InvalidPrimitiveType)?;
                     match f {
-                        b'N' => PrimitiveKind::Bool,
-                        b'J' => PrimitiveKind::Int64,
-                        b'K' => PrimitiveKind::Uint64,
-                        b'W' => PrimitiveKind::Wchar,
-                        b'Q' => PrimitiveKind::Char8,
-                        b'S' => PrimitiveKind::Char16,
-                        b'U' => PrimitiveKind::Char32,
+                        'N' => PrimitiveKind::Bool,
+                        'J' => PrimitiveKind::Int64,
+                        'K' => PrimitiveKind::Uint64,
+                        'W' => PrimitiveKind::Wchar,
+                        'Q' => PrimitiveKind::Char8,
+                        'S' => PrimitiveKind::Char16,
+                        'U' => PrimitiveKind::Char32,
                         _ => return Err(Error::InvalidPrimitiveType),
                     }
                 }
@@ -529,7 +523,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     fn demangle_custom_type(&mut self) -> Result<NodeHandle<CustomType>> {
         self.mangled_name
-            .try_consume_byte(b'?')
+            .try_consume_char('?')
             .ok_or(Error::InvalidCustomType)?;
 
         let ctn = CustomTypeNode {
@@ -537,7 +531,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             identifier: self.demangle_unqualified_type_name(true)?,
         };
 
-        if self.mangled_name.try_consume_byte(b'@').is_some() {
+        if self.mangled_name.try_consume_char('@').is_some() {
             self.cache.intern(ctn)
         } else {
             Err(Error::InvalidCustomType)
@@ -550,11 +544,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             .try_consume()
             .ok_or(Error::InvalidClassType)?;
         let tag = match f {
-            b'T' => TagKind::Union,
-            b'U' => TagKind::Struct,
-            b'V' => TagKind::Class,
-            b'W' => {
-                if self.mangled_name.try_consume_byte(b'4').is_some() {
+            'T' => TagKind::Union,
+            'U' => TagKind::Struct,
+            'V' => TagKind::Class,
+            'W' => {
+                if self.mangled_name.try_consume_char('4').is_some() {
                     TagKind::Enum
                 } else {
                     return Err(Error::InvalidClassType);
@@ -576,7 +570,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     //                       # the E is required for 64-bit non-static pointers
     fn demangle_pointer_type(&mut self) -> Result<NodeHandle<PointerType>> {
         let (mut quals, affinity) = self.demangle_pointer_cv_qualifiers()?;
-        let pointee = if self.mangled_name.try_consume_byte(b'6').is_some() {
+        let pointee = if self.mangled_name.try_consume_char('6').is_some() {
             self.demangle_function_type(false)?.into()
         } else {
             let ext_quals = self.demangle_pointer_ext_qualifiers();
@@ -605,7 +599,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
         // is_member_pointer() only returns true if there is at least one character
         // after the qualifiers.
-        let (class_parent, pointee) = if self.mangled_name.try_consume_byte(b'8').is_some() {
+        let (class_parent, pointee) = if self.mangled_name.try_consume_char('8').is_some() {
             let class_parent = self.demangle_fully_qualified_type_name()?;
             let pointee = self.demangle_function_type(true)?;
             (Some(class_parent), pointee.into())
@@ -648,7 +642,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
         // <return-type> ::= <type>
         //               ::= @ # structors (they have no declared return type)
-        let is_structor = self.mangled_name.try_consume_byte(b'@').is_some();
+        let is_structor = self.mangled_name.try_consume_char('@').is_some();
         if !is_structor {
             fty.return_type = Some(self.demangle_type(QualifierMangleMode::Result)?);
         }
@@ -661,7 +655,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     fn demangle_array_type(&mut self) -> Result<NodeHandle<ArrayType>> {
         self.mangled_name
-            .try_consume_byte(b'Y')
+            .try_consume_char('Y')
             .ok_or(Error::InvalidArrayType)?;
 
         let (rank, is_negative) = self.demangle_number()?;
@@ -684,7 +678,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             })?
         };
 
-        let quals = if self.mangled_name.try_consume_str(b"$$C").is_some() {
+        let quals = if self.mangled_name.try_consume_str("$$C").is_some() {
             let (quals, is_member) = self.demangle_qualifiers()?;
             if is_member {
                 return Err(Error::InvalidArrayType);
@@ -710,7 +704,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         is_variadic: &mut bool,
     ) -> Result<Option<NodeHandle<NodeArray>>> {
         // Empty parameter list.
-        if self.mangled_name.try_consume_byte(b'X').is_some() {
+        if self.mangled_name.try_consume_char('X').is_some() {
             return Ok(None);
         }
 
@@ -720,24 +714,25 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             // https://github.com/llvm/llvm-project/blob/bafda89a0944d947fc4b3b5663185e07a397ac30/llvm/lib/Demangle/MicrosoftDemangle.cpp#L2183-L2184
             while !self
                 .mangled_name
-                .first()
-                .is_some_and(|&x| matches!(x, b'@' | b'Z'))
+                .first_char()
+                .is_some_and(|x| matches!(x, '@' | 'Z'))
             {
                 if self.mangled_name.is_empty() {
                     return Err(Error::InvalidFunctionParameterList);
-                } else if let Some(n) = self.mangled_name.try_consume_byte_if(u8::is_ascii_digit) {
-                    let index = usize::from(n - b'0');
+                } else if let Some(n) = self.mangled_name.try_consume_char_if(char::is_ascii_digit)
+                {
+                    let index = usize::from(n as u8 - b'0');
                     if let Some(&param) = self.backrefs.function_params.get(index) {
                         nodes.push(param.into());
                     } else {
                         return Err(Error::InvalidFunctionParameterList);
                     }
                 } else {
-                    let old_len = self.mangled_name.len();
+                    let old_len = self.mangled_name.len_chars();
                     let tn = self.demangle_type(QualifierMangleMode::Drop)?;
                     nodes.push(tn.into());
 
-                    let chars_consumed = old_len - self.mangled_name.len();
+                    let chars_consumed = old_len - self.mangled_name.len_chars();
                     match chars_consumed {
                         0 => return Err(Error::InvalidFunctionParameterList),
                         1 => (), // Single-letter types are ignored for backreferences because memorizing them doesn't save anything.
@@ -755,10 +750,10 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         // A non-empty parameter list is terminated by either 'Z' (variadic) parameter
         // list or '@' (non variadic). Careful not to consume "@Z", as in that case
         // the following Z could be a throw specifier.
-        if self.mangled_name.try_consume_byte(b'@').is_some() {
+        if self.mangled_name.try_consume_char('@').is_some() {
             *is_variadic = false;
             Ok(na)
-        } else if self.mangled_name.try_consume_byte(b'Z').is_some() {
+        } else if self.mangled_name.try_consume_char('Z').is_some() {
             *is_variadic = true;
             Ok(na)
         } else {
@@ -770,11 +765,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         // Template parameter lists don't participate in back-referencing.
         let mut nodes = SmallVec::<[NodeHandle<INode>; 8]>::new();
 
-        while self.mangled_name.try_consume_byte(b'@').is_none() {
-            if self.mangled_name.try_consume_str(b"$S").is_some()
-                || self.mangled_name.try_consume_str(b"$$V").is_some()
-                || self.mangled_name.try_consume_str(b"$$$V").is_some()
-                || self.mangled_name.try_consume_str(b"$$Z").is_some()
+        while self.mangled_name.try_consume_char('@').is_none() {
+            if self.mangled_name.try_consume_str("$S").is_some()
+                || self.mangled_name.try_consume_str("$$V").is_some()
+                || self.mangled_name.try_consume_str("$$$V").is_some()
+                || self.mangled_name.try_consume_str("$$Z").is_some()
             {
                 // parameter pack separator
                 continue;
@@ -784,7 +779,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             }
 
             // <auto-nttp> ::= $ M <type> <nttp>
-            let is_auto_nttp = self.mangled_name.try_consume_str(b"$M").is_some();
+            let is_auto_nttp = self.mangled_name.try_consume_str("$M").is_some();
             if is_auto_nttp {
                 // The deduced type of the auto NTTP parameter isn't printed so
                 // we want to ignore the AST created from demangling the type.
@@ -792,33 +787,31 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             }
 
             #[allow(clippy::redundant_closure_for_method_calls)]
-            if self.mangled_name.try_consume_str(b"$$Y").is_some() {
+            if self.mangled_name.try_consume_str("$$Y").is_some() {
                 // Template alias
                 nodes.push(self.demangle_fully_qualified_type_name()?.into());
-            } else if self.mangled_name.try_consume_str(b"$$B").is_some() {
+            } else if self.mangled_name.try_consume_str("$$B").is_some() {
                 // Array
                 nodes.push(self.demangle_type(QualifierMangleMode::Drop)?.into());
-            } else if self.mangled_name.try_consume_str(b"$$C").is_some() {
+            } else if self.mangled_name.try_consume_str("$$C").is_some() {
                 // Type has qualifiers.
                 nodes.push(self.demangle_type(QualifierMangleMode::Mangle)?.into());
             } else if let Some(string) = if is_auto_nttp {
                 self.mangled_name
-                    .try_consume_str(b"1")
-                    .or_else(|| self.mangled_name.try_consume_str(b"H"))
-                    .or_else(|| self.mangled_name.try_consume_str(b"I"))
-                    .or_else(|| self.mangled_name.try_consume_str(b"J"))
-                    .map(|x| x.as_slice())
+                    .try_consume_str("1")
+                    .or_else(|| self.mangled_name.try_consume_str("H"))
+                    .or_else(|| self.mangled_name.try_consume_str("I"))
+                    .or_else(|| self.mangled_name.try_consume_str("J"))
             } else {
                 self.mangled_name
-                    .try_consume_str(b"$1")
-                    .or_else(|| self.mangled_name.try_consume_str(b"$H"))
-                    .or_else(|| self.mangled_name.try_consume_str(b"$I"))
-                    .or_else(|| self.mangled_name.try_consume_str(b"$J"))
-                    .map(|x| x.as_slice())
+                    .try_consume_str("$1")
+                    .or_else(|| self.mangled_name.try_consume_str("$H"))
+                    .or_else(|| self.mangled_name.try_consume_str("$I"))
+                    .or_else(|| self.mangled_name.try_consume_str("$J"))
             } {
                 // Pointer to member
                 let mut tprn = TemplateParameterReferenceNode {
-                    symbol: if self.mangled_name.starts_with(b"?") {
+                    symbol: if self.mangled_name.starts_with("?") {
                         let symbol = self.do_parse()?;
                         let identifier = symbol
                             .resolve(&self.cache)
@@ -842,13 +835,14 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 // H - multiple inheritance     <name> <number>
                 // I - virtual inheritance      <name> <number> <number>
                 // J - unspecified inheritance  <name> <number> <number> <number>
-                // SAFETY: we only match on strings of at least length 1
-                let inheritance_specifier = unsafe { string.last().unwrap_unchecked() };
+                // SAFETY: we do not match on empty strings
+                let inheritance_specifier =
+                    unsafe { string.chars().next_back().unwrap_unchecked() };
                 let count = match inheritance_specifier {
-                    b'1' => 0,
-                    b'H' => 1,
-                    b'I' => 2,
-                    b'J' => 3,
+                    '1' => 0,
+                    'H' => 1,
+                    'I' => 2,
+                    'J' => 3,
                     _ => return Err(Error::InvalidTemplateParameterList),
                 };
                 for _ in 0..count {
@@ -859,9 +853,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 }
 
                 nodes.push(self.cache.intern(tprn)?.into());
-            } else if self.mangled_name.starts_with(b"$E?") {
+            } else if self.mangled_name.starts_with("$E?") {
                 self.mangled_name
-                    .try_consume_str(b"$E")
+                    .try_consume_str("$E")
                     .ok_or(Error::InvalidTemplateParameterList)?;
                 // Reference to symbol
                 let tprn = TemplateParameterReferenceNode {
@@ -872,14 +866,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 nodes.push(self.cache.intern(tprn)?.into());
             } else if let Some(string) = if is_auto_nttp {
                 self.mangled_name
-                    .try_consume_str(b"F")
-                    .or_else(|| self.mangled_name.try_consume_str(b"G"))
-                    .map(|x| x.as_slice())
+                    .try_consume_str("F")
+                    .or_else(|| self.mangled_name.try_consume_str("G"))
             } else {
                 self.mangled_name
-                    .try_consume_str(b"$F")
-                    .or_else(|| self.mangled_name.try_consume_str(b"$G"))
-                    .map(|x| x.as_slice())
+                    .try_consume_str("$F")
+                    .or_else(|| self.mangled_name.try_consume_str("$G"))
             } {
                 // Data member pointer.
                 let mut tprn = TemplateParameterReferenceNode {
@@ -887,11 +879,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                     ..Default::default()
                 };
 
-                // SAFETY: we only match on strings of at least length 1
-                let inheritance_specifier = unsafe { string.last().unwrap_unchecked() };
+                // SAFETY: we do not match on empty strings
+                let inheritance_specifier =
+                    unsafe { string.chars().next_back().unwrap_unchecked() };
                 let count = match inheritance_specifier {
-                    b'G' => 3,
-                    b'F' => 2,
+                    'G' => 3,
+                    'F' => 2,
                     _ => return Err(Error::InvalidTemplateParameterList),
                 };
                 for _ in 0..count {
@@ -903,9 +896,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
                 nodes.push(self.cache.intern(tprn)?.into());
             } else if if is_auto_nttp {
-                self.mangled_name.try_consume_str(b"0").is_some()
+                self.mangled_name.try_consume_str("0").is_some()
             } else {
-                self.mangled_name.try_consume_str(b"$0").is_some()
+                self.mangled_name.try_consume_str("$0").is_some()
             } {
                 // Integral non-type template parameter
                 let (value, is_negative) = self.demangle_number()?;
@@ -938,13 +931,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     //
     // <hex-digit>            ::= [A-P]           # A = 0, B = 1, ...
     fn demangle_number(&mut self) -> Result<(u64, bool)> {
-        let is_negative = self.mangled_name.try_consume_byte(b'?').is_some();
+        let is_negative = self.mangled_name.try_consume_char('?').is_some();
         let mut c = self
             .mangled_name
             .try_consume()
             .ok_or(Error::InvalidNumber)?;
         if c.is_ascii_digit() {
-            let number = c - b'0' + 1;
+            let number = c as u8 - b'0' + 1;
             Ok((number.into(), is_negative))
         } else {
             let mut number = 0u64;
@@ -952,9 +945,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 match c {
                     // TODO: grammar says "<hex digit>+ @", but code says "<hex digit>* @"... bug?
                     // https://github.com/llvm/llvm-project/blob/bafda89a0944d947fc4b3b5663185e07a397ac30/llvm/lib/Demangle/MicrosoftDemangle.cpp#L932-L958
-                    b'@' => break Ok((number, is_negative)),
+                    '@' => break Ok((number, is_negative)),
                     c if c.is_rebased_ascii_hexdigit() => {
-                        number = number.wrapping_shl(4) + u64::from(c - b'A');
+                        number = number.wrapping_shl(4) + u64::from(c as u8 - b'A');
                     }
                     _ => break Err(Error::InvalidNumber),
                 }
@@ -985,7 +978,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     // First 10 strings can be referenced by special BackReferences ?0, ?1, ..., ?9.
     // Memorize it.
-    fn memorize_string(&mut self, s: &'alloc BStr) -> Result<()> {
+    fn memorize_string(&mut self, s: &'alloc str) -> Result<()> {
         if self
             .backrefs
             .names
@@ -1008,12 +1001,14 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     fn memorize_identifier(&mut self, identifier: NodeHandle<IIdentifierNode>) -> Result<()> {
         // Render this class template name into a string buffer so that we can
         // memorize it for the purpose of back-referencing.
-        let mut ob = alloc::new_vec(self.allocator);
-        let mut writer = Writer::new(&mut ob);
+        let mut ob = {
+            let ob = alloc::new_vec(self.allocator);
+            Writer::new(ob)
+        };
         identifier
             .resolve(&self.cache)
-            .output(&self.cache, &mut writer, self.flags)?;
-        self.memorize_string(ob.into_bump_slice().into())
+            .output(&self.cache, &mut ob, self.flags)?;
+        self.memorize_string(ob.try_into()?)
     }
 
     // Parses a type name in the form of A@B@C@@ which represents C::B::A.
@@ -1057,9 +1052,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         &mut self,
         memorize: bool,
     ) -> Result<NodeHandle<IIdentifierNode>> {
-        if self.mangled_name.first().is_some_and(u8::is_ascii_digit) {
+        if self
+            .mangled_name
+            .first_char()
+            .is_some_and(|x| x.is_ascii_digit())
+        {
             self.demangle_back_ref_name().map(Into::into)
-        } else if self.mangled_name.starts_with(b"?$") {
+        } else if self.mangled_name.starts_with("?$") {
             self.demangle_template_instantiation_name(NameBackrefBehavior::NBB_Template)
         } else {
             self.demangle_simple_name(memorize).map(Into::into)
@@ -1070,11 +1069,15 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         &mut self,
         nbb: NameBackrefBehavior,
     ) -> Result<NodeHandle<IIdentifierNode>> {
-        if self.mangled_name.first().is_some_and(u8::is_ascii_digit) {
+        if self
+            .mangled_name
+            .first_char()
+            .is_some_and(|x| x.is_ascii_digit())
+        {
             self.demangle_back_ref_name().map(Into::into)
-        } else if self.mangled_name.starts_with(b"?$") {
+        } else if self.mangled_name.starts_with("?$") {
             self.demangle_template_instantiation_name(nbb)
-        } else if self.mangled_name.starts_with(b"?") {
+        } else if self.mangled_name.starts_with("?") {
             self.demangle_function_identifier_code()
         } else {
             self.demangle_simple_name(nbb.is_simple()).map(Into::into)
@@ -1088,7 +1091,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         let mut nodes = SmallVec::<[_; 8]>::new();
         nodes.push(unqualified_name.into());
         loop {
-            if self.mangled_name.try_consume_byte(b'@').is_some() {
+            if self.mangled_name.try_consume_char('@').is_some() {
                 nodes.reverse();
                 let components = self.cache.intern(NodeArrayNode {
                     nodes: alloc::allocate_slice(self.allocator, &nodes),
@@ -1104,11 +1107,15 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     }
 
     fn demangle_name_scope_piece(&mut self) -> Result<NodeHandle<IIdentifierNode>> {
-        if self.mangled_name.first().is_some_and(u8::is_ascii_digit) {
+        if self
+            .mangled_name
+            .first_char()
+            .is_some_and(|x| x.is_ascii_digit())
+        {
             self.demangle_back_ref_name().map(Into::into)
-        } else if self.mangled_name.starts_with(b"?$") {
+        } else if self.mangled_name.starts_with("?$") {
             self.demangle_template_instantiation_name(NameBackrefBehavior::NBB_Template)
-        } else if self.mangled_name.starts_with(b"?A") {
+        } else if self.mangled_name.starts_with("?A") {
             self.demangle_anonymous_namespace_name().map(Into::into)
         } else if self.mangled_name.starts_with_local_scope_pattern() {
             self.demangle_locally_scoped_name_piece().map(Into::into)
@@ -1120,9 +1127,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     fn demangle_back_ref_name(&mut self) -> Result<NodeHandle<NamedIdentifier>> {
         let c = self
             .mangled_name
-            .try_consume_byte_if(u8::is_ascii_digit)
+            .try_consume_char_if(char::is_ascii_digit)
             .ok_or(Error::InvalidBackRef)?;
-        let i = c - b'0';
+        let i = c as u8 - b'0';
         let node = self
             .backrefs
             .names
@@ -1136,7 +1143,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         nbb: NameBackrefBehavior,
     ) -> Result<NodeHandle<IIdentifierNode>> {
         self.mangled_name
-            .try_consume_str(b"?$")
+            .try_consume_str("?$")
             .ok_or(Error::InvalidTemplateInstantiationName)?;
 
         let outer_context = mem::take(&mut self.backrefs);
@@ -1167,11 +1174,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     }
 
     fn translate_intrinsic_function_code(
-        ch: u8,
+        ch: char,
         group: FunctionIdentifierCodeGroup,
     ) -> Result<Option<IntrinsicFunctionKind>> {
         use crate::nodes::IntrinsicFunctionKind as IFK;
         if ch.is_ascii_digit() || ch.is_ascii_uppercase() {
+            let ch = ch as u8;
             let i = if ch.is_ascii_digit() {
                 ch - b'0'
             } else {
@@ -1303,11 +1311,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     fn demangle_function_identifier_code(&mut self) -> Result<NodeHandle<IIdentifierNode>> {
         self.mangled_name
-            .try_consume_byte(b'?')
+            .try_consume_char('?')
             .ok_or(Error::InvalidFunctionIdentifierCode)?;
-        if self.mangled_name.try_consume_str(b"__").is_some() {
+        if self.mangled_name.try_consume_str("__").is_some() {
             self.demangle_function_identifier_code_group(FunctionIdentifierCodeGroup::DoubleUnder)
-        } else if self.mangled_name.try_consume_byte(b'_').is_some() {
+        } else if self.mangled_name.try_consume_char('_').is_some() {
             self.demangle_function_identifier_code_group(FunctionIdentifierCodeGroup::Under)
         } else {
             self.demangle_function_identifier_code_group(FunctionIdentifierCodeGroup::Basic)
@@ -1323,13 +1331,13 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             .try_consume()
             .ok_or(Error::InvalidFunctionIdentifierCode)?;
         match group {
-            FunctionIdentifierCodeGroup::Basic if matches!(ch, b'0' | b'1') => self
-                .demangle_structor_identifier(ch == b'1')
-                .map(Into::into),
-            FunctionIdentifierCodeGroup::Basic if ch == b'B' => self
+            FunctionIdentifierCodeGroup::Basic if matches!(ch, '0' | '1') => {
+                self.demangle_structor_identifier(ch == '1').map(Into::into)
+            }
+            FunctionIdentifierCodeGroup::Basic if ch == 'B' => self
                 .demangle_conversion_operator_identifier()
                 .map(Into::into),
-            FunctionIdentifierCodeGroup::DoubleUnder if ch == b'K' => {
+            FunctionIdentifierCodeGroup::DoubleUnder if ch == 'K' => {
                 self.demangle_literal_operator_identifier().map(Into::into)
             }
             _ => {
@@ -1388,7 +1396,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 SpecialIntrinsicKind::RttiTypeDescriptor => {
                     let t = self.demangle_type(QualifierMangleMode::Result)?;
                     self.mangled_name
-                        .try_consume_str(b"@8")
+                        .try_consume_str("@8")
                         .ok_or(Error::InvalidSpecialIntrinsic)?;
                     if !self.mangled_name.is_empty() {
                         return Err(Error::InvalidSpecialIntrinsic);
@@ -1397,15 +1405,15 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                         self.allocator,
                         &mut self.cache,
                         t,
-                        b"`RTTI Type Descriptor'".into(),
+                        "`RTTI Type Descriptor'",
                     )?;
                     self.cache.intern(node)?.into()
                 }
                 SpecialIntrinsicKind::RttiBaseClassArray => self
-                    .demangle_untyped_variable(b"`RTTI Base Class Array'".into())?
+                    .demangle_untyped_variable("`RTTI Base Class Array'")?
                     .into(),
                 SpecialIntrinsicKind::RttiClassHierarchyDescriptor => self
-                    .demangle_untyped_variable(b"`RTTI Class Hierarchy Descriptor'".into())?
+                    .demangle_untyped_variable("`RTTI Class Hierarchy Descriptor'")?
                     .into(),
                 SpecialIntrinsicKind::RttiBaseClassDescriptor => {
                     self.demangle_rtti_base_class_descriptor_node()?.into()
@@ -1432,26 +1440,26 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         &mut self,
         k: SpecialIntrinsicKind,
     ) -> Result<NodeHandle<SpecialTableSymbol>> {
-        let intrinsic_name: &[u8] = match k {
-            SpecialIntrinsicKind::Vftable => b"`vftable'",
-            SpecialIntrinsicKind::Vbtable => b"`vbtable'",
-            SpecialIntrinsicKind::LocalVftable => b"`local vftable'",
-            SpecialIntrinsicKind::RttiCompleteObjLocator => b"`RTTI Complete Object Locator'",
+        let intrinsic_name = match k {
+            SpecialIntrinsicKind::Vftable => "`vftable'",
+            SpecialIntrinsicKind::Vbtable => "`vbtable'",
+            SpecialIntrinsicKind::LocalVftable => "`local vftable'",
+            SpecialIntrinsicKind::RttiCompleteObjLocator => "`RTTI Complete Object Locator'",
             _ => return Err(Error::InvalidSpecialTableSymbolNode),
         };
 
         let ni = self.cache.intern(NamedIdentifierNode {
-            name: intrinsic_name.into(),
+            name: intrinsic_name,
             ..Default::default()
         })?;
         let name = self.demangle_name_scope_chain(ni.into())?;
 
         self.mangled_name
-            .try_consume_byte_if(|&x| matches!(x, b'6' | b'7'))
+            .try_consume_char_if(|&x| matches!(x, '6' | '7'))
             .ok_or(Error::InvalidSpecialTableSymbolNode)?;
 
         let (quals, _) = self.demangle_qualifiers()?;
-        let target_name = if self.mangled_name.try_consume_byte(b'@').is_none() {
+        let target_name = if self.mangled_name.try_consume_char('@').is_none() {
             Some(self.demangle_fully_qualified_type_name()?)
         } else {
             None
@@ -1474,9 +1482,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         })?;
         let name = self.demangle_name_scope_chain(lsgi.into())?;
 
-        let is_visible = if self.mangled_name.try_consume_str(b"4IA").is_some() {
+        let is_visible = if self.mangled_name.try_consume_str("4IA").is_some() {
             false
-        } else if self.mangled_name.try_consume_byte(b'5').is_some() {
+        } else if self.mangled_name.try_consume_char('5').is_some() {
             true
         } else {
             return Err(Error::InvalidLocalStaticGuard);
@@ -1495,14 +1503,14 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     fn demangle_untyped_variable(
         &mut self,
-        variable_name: &'static BStr,
+        variable_name: &'static str,
     ) -> Result<NodeHandle<VariableSymbol>> {
         let ni = self.cache.intern(NamedIdentifierNode {
             name: variable_name,
             ..Default::default()
         })?;
         let name = Some(self.demangle_name_scope_chain(ni.into())?.into());
-        if self.mangled_name.try_consume_byte(b'8').is_some() {
+        if self.mangled_name.try_consume_char('8').is_some() {
             self.cache.intern(VariableSymbolNode {
                 name,
                 ..Default::default()
@@ -1539,7 +1547,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         })?;
         let name = Some(self.demangle_name_scope_chain(rbcdn.into())?.into());
         self.mangled_name
-            .try_consume_byte(b'8')
+            .try_consume_char('8')
             .ok_or(Error::InvalidRttiBaseClassDescriptorNode)?;
 
         self.cache.intern(VariableSymbolNode {
@@ -1552,7 +1560,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         &mut self,
         is_destructor: bool,
     ) -> Result<NodeHandle<FunctionSymbol>> {
-        let is_known_static_data_member = self.mangled_name.try_consume_byte(b'?').is_some();
+        let is_known_static_data_member = self.mangled_name.try_consume_char('?').is_some();
         let symbol = self.demangle_declarator()?;
         if let Some(variable) = symbol.downcast::<VariableSymbol>(&self.cache) {
             // Older versions of clang mangled this type of symbol incorrectly. They
@@ -1561,11 +1569,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             // both cases.
             if is_known_static_data_member {
                 self.mangled_name
-                    .try_consume_str(b"@@")
+                    .try_consume_str("@@")
                     .ok_or(Error::InvalidInitFiniStub)?;
             } else {
                 self.mangled_name
-                    .try_consume_byte(b'@')
+                    .try_consume_char('@')
                     .ok_or(Error::InvalidInitFiniStub)?;
             }
 
@@ -1625,22 +1633,22 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     fn demangle_anonymous_namespace_name(&mut self) -> Result<NodeHandle<NamedIdentifier>> {
         self.mangled_name
-            .try_consume_str(b"?A")
+            .try_consume_str("?A")
             .ok_or(Error::InvalidAnonymousNamespaceName)?;
         let pos = self
             .mangled_name
-            .find_byte(b'@')
+            .find_char('@')
             .ok_or(Error::InvalidAnonymousNamespaceName)?;
         let namespace_key = self
             .mangled_name
-            .try_consume_n(pos)
+            .try_consume_n_bytes(pos)
             .ok_or(Error::InvalidAnonymousNamespaceName)?;
         self.memorize_string(namespace_key)?;
         self.mangled_name
-            .try_consume_byte(b'@')
+            .try_consume_char('@')
             .ok_or(Error::InvalidAnonymousNamespaceName)?;
         self.cache.intern(NamedIdentifierNode {
-            name: b"`anonymous namespace'".into(),
+            name: "`anonymous namespace'",
             ..Default::default()
         })
     }
@@ -1648,7 +1656,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     fn demangle_locally_scoped_name_piece(&mut self) -> Result<NodeHandle<NamedIdentifier>> {
         let mut identifier = NamedIdentifierNode::default();
         self.mangled_name
-            .try_consume_byte(b'?')
+            .try_consume_char('?')
             .ok_or(Error::InvalidLocallyScopedNamePiece)?;
         let (number, is_negative) = self.demangle_number()?;
         if is_negative {
@@ -1657,25 +1665,27 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
         // One ? to terminate the number
         self.mangled_name
-            .try_consume_byte(b'?')
+            .try_consume_char('?')
             .ok_or(Error::InvalidLocallyScopedNamePiece)?;
         let scope = self.do_parse()?.resolve(&self.cache);
 
         // Render the parent symbol's name into a buffer.
-        let mut ob = alloc::new_vec(self.allocator);
-        let mut writer = Writer::new(&mut ob);
-        write!(writer, "`")?;
-        scope.output(&self.cache, &mut writer, self.flags)?;
-        write!(writer, "'::`{number}'")?;
+        let mut ob = {
+            let ob = alloc::new_vec(self.allocator);
+            Writer::new(ob)
+        };
+        write!(ob, "`")?;
+        scope.output(&self.cache, &mut ob, self.flags)?;
+        write!(ob, "'::`{number}'")?;
 
-        identifier.name = ob.into_bump_slice().into();
+        identifier.name = ob.try_into()?;
         self.cache.intern(identifier)
     }
 
     fn demangle_string_literal(&mut self) -> Result<NodeHandle<EncodedStringLiteral>> {
         // Prefix indicating the beginning of a string literal
         self.mangled_name
-            .try_consume_str(b"@_")
+            .try_consume_str("@_")
             .ok_or(Error::InvalidStringLiteral)?;
 
         let f = self
@@ -1683,8 +1693,8 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             .try_consume()
             .ok_or(Error::InvalidStringLiteral)?;
         let is_wchar_t = match f {
-            b'1' => true,
-            b'0' => false,
+            '1' => true,
+            '0' => false,
             _ => return Err(Error::InvalidStringLiteral),
         };
 
@@ -1697,28 +1707,30 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         // CRC 32 (always 8 characters plus a terminator)
         let crc_end_pos = self
             .mangled_name
-            .find_byte(b'@')
+            .find_char('@')
             .ok_or(Error::InvalidStringLiteral)?;
         self.mangled_name
-            .try_consume_n(crc_end_pos + 1)
+            .try_consume_n_bytes(crc_end_pos + 1)
             .ok_or(Error::InvalidStringLiteral)?;
         if self.mangled_name.is_empty() {
             return Err(Error::InvalidStringLiteral);
         }
 
-        let mut ob = alloc::new_vec(self.allocator);
-        let mut writer = Writer::new(&mut ob);
+        let mut ob = {
+            let ob = alloc::new_vec(self.allocator);
+            Writer::new(ob)
+        };
         let (char, is_truncated) = if is_wchar_t {
             let char = CharKind::Wchar;
             let is_truncated = string_byte_len > 64;
 
-            while self.mangled_name.try_consume_byte(b'@').is_none() {
-                if self.mangled_name.len() < 2 {
+            while self.mangled_name.try_consume_char('@').is_none() {
+                if self.mangled_name.len_bytes() < 2 {
                     return Err(Error::InvalidStringLiteral);
                 }
                 let w = self.demangle_wchar_literal()?;
                 if string_byte_len != 2 || is_truncated {
-                    Self::output_escaped_char(&mut writer, w.into())?;
+                    Self::output_escaped_char(&mut ob, w.into())?;
                 }
                 string_byte_len = string_byte_len.saturating_sub(2);
             }
@@ -1728,7 +1740,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             // The max byte length is actually 32, but some compilers mangled strings
             // incorrectly, so we have to assume it can go higher.
             let mut string_bytes = ArrayVec::<u8, { 32 * 4 }>::new();
-            while self.mangled_name.try_consume_byte(b'@').is_none() {
+            while self.mangled_name.try_consume_char('@').is_none() {
                 if self.mangled_name.is_empty() {
                     return Err(Error::InvalidStringLiteral);
                 }
@@ -1753,7 +1765,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 let next_char = Self::decode_multi_byte_char(&string_bytes, char_index, char_bytes)
                     .ok_or(Error::InvalidStringLiteral)?;
                 if char_index + 1 < num_chars || is_truncated {
-                    Self::output_escaped_char(&mut writer, next_char)?;
+                    Self::output_escaped_char(&mut ob, next_char)?;
                 }
             }
 
@@ -1762,7 +1774,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
         let result = EncodedStringLiteralNode {
             name: None,
-            decoded_string: ob.into_bump_slice().into(),
+            decoded_string: ob.try_into()?,
             is_truncated,
             char,
         };
@@ -1774,12 +1786,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         let name = Some(self.demangle_name_scope_chain(vtin.into())?);
 
         self.mangled_name
-            .try_consume_str(b"$B")
+            .try_consume_str("$B")
             .ok_or(Error::InvalidVcallThunkNode)?;
         let offset_in_vtable = self.demangle_unsigned()?;
         vtin.resolve_mut(&mut self.cache).offset_in_vtable = offset_in_vtable;
         self.mangled_name
-            .try_consume_byte(b'A')
+            .try_consume_char('A')
             .ok_or(Error::InvalidVcallThunkNode)?;
 
         let call_convention = self.demangle_calling_convention()?;
@@ -1799,20 +1811,20 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     // Returns mangled_name's prefix before the first '@', or an error if
     // mangled_name contains no '@' or the prefix has length 0.
-    fn demangle_simple_string(&mut self, memorize: bool) -> Result<&'string BStr> {
+    fn demangle_simple_string(&mut self, memorize: bool) -> Result<&'string str> {
         let pos = self
             .mangled_name
-            .find_byte(b'@')
+            .find_char('@')
             .ok_or(Error::InvalidSimpleString)?;
         if pos == 0 {
             Err(Error::InvalidSimpleString)
         } else {
             let string = self
                 .mangled_name
-                .try_consume_n(pos)
+                .try_consume_n_bytes(pos)
                 .ok_or(Error::InvalidSimpleString)?;
             self.mangled_name
-                .try_consume_byte(b'@')
+                .try_consume_char('@')
                 .ok_or(Error::InvalidSimpleString)?;
             if memorize {
                 self.memorize_string(string)?;
@@ -1827,46 +1839,46 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             .try_consume()
             .ok_or(Error::InvalidFunctionClass)?;
         match f {
-            b'9' => Ok(FuncClass::FC_ExternC | FuncClass::FC_NoParameterList),
-            b'A' => Ok(FuncClass::FC_Private),
-            b'B' => Ok(FuncClass::FC_Private | FuncClass::FC_Far),
-            b'C' => Ok(FuncClass::FC_Private | FuncClass::FC_Static),
-            b'D' => Ok(FuncClass::FC_Private | FuncClass::FC_Static | FuncClass::FC_Far),
-            b'E' => Ok(FuncClass::FC_Private | FuncClass::FC_Virtual),
-            b'F' => Ok(FuncClass::FC_Private | FuncClass::FC_Virtual | FuncClass::FC_Far),
-            b'G' => Ok(FuncClass::FC_Private | FuncClass::FC_StaticThisAdjust),
-            b'H' => Ok(FuncClass::FC_Private | FuncClass::FC_StaticThisAdjust | FuncClass::FC_Far),
-            b'I' => Ok(FuncClass::FC_Protected),
-            b'J' => Ok(FuncClass::FC_Protected | FuncClass::FC_Far),
-            b'K' => Ok(FuncClass::FC_Protected | FuncClass::FC_Static),
-            b'L' => Ok(FuncClass::FC_Protected | FuncClass::FC_Static | FuncClass::FC_Far),
-            b'M' => Ok(FuncClass::FC_Protected | FuncClass::FC_Virtual),
-            b'N' => Ok(FuncClass::FC_Protected | FuncClass::FC_Virtual | FuncClass::FC_Far),
-            b'O' => Ok(FuncClass::FC_Protected
+            '9' => Ok(FuncClass::FC_ExternC | FuncClass::FC_NoParameterList),
+            'A' => Ok(FuncClass::FC_Private),
+            'B' => Ok(FuncClass::FC_Private | FuncClass::FC_Far),
+            'C' => Ok(FuncClass::FC_Private | FuncClass::FC_Static),
+            'D' => Ok(FuncClass::FC_Private | FuncClass::FC_Static | FuncClass::FC_Far),
+            'E' => Ok(FuncClass::FC_Private | FuncClass::FC_Virtual),
+            'F' => Ok(FuncClass::FC_Private | FuncClass::FC_Virtual | FuncClass::FC_Far),
+            'G' => Ok(FuncClass::FC_Private | FuncClass::FC_StaticThisAdjust),
+            'H' => Ok(FuncClass::FC_Private | FuncClass::FC_StaticThisAdjust | FuncClass::FC_Far),
+            'I' => Ok(FuncClass::FC_Protected),
+            'J' => Ok(FuncClass::FC_Protected | FuncClass::FC_Far),
+            'K' => Ok(FuncClass::FC_Protected | FuncClass::FC_Static),
+            'L' => Ok(FuncClass::FC_Protected | FuncClass::FC_Static | FuncClass::FC_Far),
+            'M' => Ok(FuncClass::FC_Protected | FuncClass::FC_Virtual),
+            'N' => Ok(FuncClass::FC_Protected | FuncClass::FC_Virtual | FuncClass::FC_Far),
+            'O' => Ok(FuncClass::FC_Protected
                 | FuncClass::FC_Virtual
                 | FuncClass::FC_StaticThisAdjust),
-            b'P' => Ok(FuncClass::FC_Protected
+            'P' => Ok(FuncClass::FC_Protected
                 | FuncClass::FC_Virtual
                 | FuncClass::FC_StaticThisAdjust
                 | FuncClass::FC_Far),
-            b'Q' => Ok(FuncClass::FC_Public),
-            b'R' => Ok(FuncClass::FC_Public | FuncClass::FC_Far),
-            b'S' => Ok(FuncClass::FC_Public | FuncClass::FC_Static),
-            b'T' => Ok(FuncClass::FC_Public | FuncClass::FC_Static | FuncClass::FC_Far),
-            b'U' => Ok(FuncClass::FC_Public | FuncClass::FC_Virtual),
-            b'V' => Ok(FuncClass::FC_Public | FuncClass::FC_Virtual | FuncClass::FC_Far),
-            b'W' => {
+            'Q' => Ok(FuncClass::FC_Public),
+            'R' => Ok(FuncClass::FC_Public | FuncClass::FC_Far),
+            'S' => Ok(FuncClass::FC_Public | FuncClass::FC_Static),
+            'T' => Ok(FuncClass::FC_Public | FuncClass::FC_Static | FuncClass::FC_Far),
+            'U' => Ok(FuncClass::FC_Public | FuncClass::FC_Virtual),
+            'V' => Ok(FuncClass::FC_Public | FuncClass::FC_Virtual | FuncClass::FC_Far),
+            'W' => {
                 Ok(FuncClass::FC_Public | FuncClass::FC_Virtual | FuncClass::FC_StaticThisAdjust)
             }
-            b'X' => Ok(FuncClass::FC_Public
+            'X' => Ok(FuncClass::FC_Public
                 | FuncClass::FC_Virtual
                 | FuncClass::FC_StaticThisAdjust
                 | FuncClass::FC_Far),
-            b'Y' => Ok(FuncClass::FC_Global),
-            b'Z' => Ok(FuncClass::FC_Global | FuncClass::FC_Far),
-            b'$' => {
+            'Y' => Ok(FuncClass::FC_Global),
+            'Z' => Ok(FuncClass::FC_Global | FuncClass::FC_Far),
+            '$' => {
                 let mut vflag = FuncClass::FC_VirtualThisAdjust;
-                if self.mangled_name.try_consume_byte(b'R').is_some() {
+                if self.mangled_name.try_consume_char('R').is_some() {
                     vflag |= FuncClass::FC_VirtualThisAdjustEx;
                 }
                 let f = self
@@ -1874,18 +1886,18 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                     .try_consume()
                     .ok_or(Error::InvalidFunctionClass)?;
                 match f {
-                    b'0' => Ok(FuncClass::FC_Private | FuncClass::FC_Virtual | vflag),
-                    b'1' => Ok(FuncClass::FC_Private
+                    '0' => Ok(FuncClass::FC_Private | FuncClass::FC_Virtual | vflag),
+                    '1' => Ok(FuncClass::FC_Private
                         | FuncClass::FC_Virtual
                         | vflag
                         | FuncClass::FC_Far),
-                    b'2' => Ok(FuncClass::FC_Protected | FuncClass::FC_Virtual | vflag),
-                    b'3' => Ok(FuncClass::FC_Protected
+                    '2' => Ok(FuncClass::FC_Protected | FuncClass::FC_Virtual | vflag),
+                    '3' => Ok(FuncClass::FC_Protected
                         | FuncClass::FC_Virtual
                         | vflag
                         | FuncClass::FC_Far),
-                    b'4' => Ok(FuncClass::FC_Public | FuncClass::FC_Virtual | vflag),
-                    b'5' => Ok(FuncClass::FC_Public
+                    '4' => Ok(FuncClass::FC_Public | FuncClass::FC_Virtual | vflag),
+                    '5' => Ok(FuncClass::FC_Public
                         | FuncClass::FC_Virtual
                         | vflag
                         | FuncClass::FC_Far),
@@ -1902,16 +1914,16 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             .try_consume()
             .ok_or(Error::InvalidCallingConvention)?;
         let cc = match f {
-            b'A' | b'B' => Some(CallingConv::Cdecl),
-            b'C' | b'D' => Some(CallingConv::Pascal),
-            b'E' | b'F' => Some(CallingConv::Thiscall),
-            b'G' | b'H' => Some(CallingConv::Stdcall),
-            b'I' | b'J' => Some(CallingConv::Fastcall),
-            b'M' | b'N' => Some(CallingConv::Clrcall),
-            b'O' | b'P' => Some(CallingConv::Eabi),
-            b'Q' => Some(CallingConv::Vectorcall),
-            b'S' => Some(CallingConv::Swift),
-            b'W' => Some(CallingConv::SwiftAsync),
+            'A' | 'B' => Some(CallingConv::Cdecl),
+            'C' | 'D' => Some(CallingConv::Pascal),
+            'E' | 'F' => Some(CallingConv::Thiscall),
+            'G' | 'H' => Some(CallingConv::Stdcall),
+            'I' | 'J' => Some(CallingConv::Fastcall),
+            'M' | 'N' => Some(CallingConv::Clrcall),
+            'O' | 'P' => Some(CallingConv::Eabi),
+            'Q' => Some(CallingConv::Vectorcall),
+            'S' => Some(CallingConv::Swift),
+            'W' => Some(CallingConv::SwiftAsync),
             _ => None,
         };
         Ok(cc)
@@ -1923,19 +1935,19 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             .try_consume()
             .ok_or(Error::InvalidVariableStorageClass)?;
         match f {
-            b'0' => Ok(StorageClass::PrivateStatic),
-            b'1' => Ok(StorageClass::ProtectedStatic),
-            b'2' => Ok(StorageClass::PublicStatic),
-            b'3' => Ok(StorageClass::Global),
-            b'4' => Ok(StorageClass::FunctionLocalStatic),
+            '0' => Ok(StorageClass::PrivateStatic),
+            '1' => Ok(StorageClass::ProtectedStatic),
+            '2' => Ok(StorageClass::PublicStatic),
+            '3' => Ok(StorageClass::Global),
+            '4' => Ok(StorageClass::FunctionLocalStatic),
             _ => Err(Error::InvalidVariableStorageClass),
         }
     }
 
     fn demangle_throw_specification(&mut self) -> Result<bool> {
-        if self.mangled_name.try_consume_str(b"_E").is_some() {
+        if self.mangled_name.try_consume_str("_E").is_some() {
             Ok(true)
-        } else if self.mangled_name.try_consume_byte(b'Z').is_some() {
+        } else if self.mangled_name.try_consume_char('Z').is_some() {
             Ok(false)
         } else {
             Err(Error::InvalidThrowSpecification)
@@ -1954,16 +1966,16 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             .try_consume()
             .ok_or(Error::InvalidCharLiteral)?;
         match c {
-            b'?' => {
+            '?' => {
                 let c = self
                     .mangled_name
                     .try_consume()
                     .ok_or(Error::InvalidCharLiteral)?;
                 match c {
-                    b'$' => {
+                    '$' => {
                         let nibbles = self
                             .mangled_name
-                            .try_consume_n_fixed::<2>()
+                            .try_consume_n_chars::<2>()
                             .ok_or(Error::InvalidCharLiteral)?;
                         let c1 = nibbles[0]
                             .try_convert_rebased_ascii_hexdigit_to_number()
@@ -1977,7 +1989,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                         const LOOKUP: [u8; 10] = [
                             b',', b'/', b'\\', b':', b'.', b' ', b'\n', b'\t', b'\'', b'-',
                         ];
-                        let i = c - b'0';
+                        let i = c as u8 - b'0';
                         // SAFETY: the range contains 10 numbers, and there are 10 ascii digits
                         let result = unsafe { LOOKUP.get_unchecked(i as usize) };
                         Ok(*result)
@@ -1994,7 +2006,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                                 }
                             }
                         };
-                        let i = c - b'a';
+                        let i = c as u8 - b'a';
                         // SAFETY: the range contains 26 numbers, and there are 26 ascii lowercase characters
                         let result = unsafe { LOOKUP.get_unchecked(i as usize) };
                         Ok(*result)
@@ -2011,7 +2023,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                                 }
                             }
                         };
-                        let i = c - b'A';
+                        let i = c as u8 - b'A';
                         // SAFETY: the range contains 26 numbers, and there are 26 ascii uppercase characters
                         let result = unsafe { LOOKUP.get_unchecked(i as usize) };
                         Ok(*result)
@@ -2019,7 +2031,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                     _ => Err(Error::InvalidCharLiteral),
                 }
             }
-            c => Ok(c),
+            _ => Ok(c.try_into().map_err(|_| Error::InvalidCharLiteral)?),
         }
     }
 
@@ -2030,21 +2042,21 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
             .ok_or(Error::InvalidQualifiers)?;
         match f {
             // Member qualifiers
-            b'Q' => Ok((Qualifiers::Q_None, true)),
-            b'R' => Ok((Qualifiers::Q_Const, true)),
-            b'S' => Ok((Qualifiers::Q_Volatile, true)),
-            b'T' => Ok((Qualifiers::Q_Const | Qualifiers::Q_Volatile, true)),
+            'Q' => Ok((Qualifiers::Q_None, true)),
+            'R' => Ok((Qualifiers::Q_Const, true)),
+            'S' => Ok((Qualifiers::Q_Volatile, true)),
+            'T' => Ok((Qualifiers::Q_Const | Qualifiers::Q_Volatile, true)),
             // Non-Member qualifiers
-            b'A' => Ok((Qualifiers::Q_None, false)),
-            b'B' => Ok((Qualifiers::Q_Const, false)),
-            b'C' => Ok((Qualifiers::Q_Volatile, false)),
-            b'D' => Ok((Qualifiers::Q_Const | Qualifiers::Q_Volatile, false)),
+            'A' => Ok((Qualifiers::Q_None, false)),
+            'B' => Ok((Qualifiers::Q_Const, false)),
+            'C' => Ok((Qualifiers::Q_Volatile, false)),
+            'D' => Ok((Qualifiers::Q_Const | Qualifiers::Q_Volatile, false)),
             _ => Err(Error::InvalidQualifiers),
         }
     }
 
     fn demangle_pointer_cv_qualifiers(&mut self) -> Result<(Qualifiers, PointerAffinity)> {
-        if self.mangled_name.try_consume_str(b"$$Q").is_some() {
+        if self.mangled_name.try_consume_str("$$Q").is_some() {
             Ok((Qualifiers::Q_None, PointerAffinity::RValueReference))
         } else {
             let f = self
@@ -2052,11 +2064,11 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 .try_consume()
                 .ok_or(Error::InvalidPointerCVQualifiers)?;
             match f {
-                b'A' => Ok((Qualifiers::Q_None, PointerAffinity::Reference)),
-                b'P' => Ok((Qualifiers::Q_None, PointerAffinity::Pointer)),
-                b'Q' => Ok((Qualifiers::Q_Const, PointerAffinity::Pointer)),
-                b'R' => Ok((Qualifiers::Q_Volatile, PointerAffinity::Pointer)),
-                b'S' => Ok((
+                'A' => Ok((Qualifiers::Q_None, PointerAffinity::Reference)),
+                'P' => Ok((Qualifiers::Q_None, PointerAffinity::Pointer)),
+                'Q' => Ok((Qualifiers::Q_Const, PointerAffinity::Pointer)),
+                'R' => Ok((Qualifiers::Q_Volatile, PointerAffinity::Pointer)),
+                'S' => Ok((
                     Qualifiers::Q_Const | Qualifiers::Q_Volatile,
                     PointerAffinity::Pointer,
                 )),
@@ -2067,9 +2079,9 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     #[must_use]
     fn demangle_function_ref_qualifier(&mut self) -> Option<FunctionRefQualifier> {
-        if self.mangled_name.try_consume_byte(b'G').is_some() {
+        if self.mangled_name.try_consume_char('G').is_some() {
             Some(FunctionRefQualifier::Reference)
-        } else if self.mangled_name.try_consume_byte(b'H').is_some() {
+        } else if self.mangled_name.try_consume_char('H').is_some() {
             Some(FunctionRefQualifier::RValueReference)
         } else {
             None
@@ -2078,44 +2090,44 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
     #[must_use]
     fn consume_special_intrinsic_kind(&mut self) -> Option<SpecialIntrinsicKind> {
-        if self.mangled_name.try_consume_str(b"?_7").is_some() {
+        if self.mangled_name.try_consume_str("?_7").is_some() {
             Some(SpecialIntrinsicKind::Vftable)
-        } else if self.mangled_name.try_consume_str(b"?_8").is_some() {
+        } else if self.mangled_name.try_consume_str("?_8").is_some() {
             Some(SpecialIntrinsicKind::Vbtable)
-        } else if self.mangled_name.try_consume_str(b"?_9").is_some() {
+        } else if self.mangled_name.try_consume_str("?_9").is_some() {
             Some(SpecialIntrinsicKind::VcallThunk)
-        } else if self.mangled_name.try_consume_str(b"?_A").is_some() {
+        } else if self.mangled_name.try_consume_str("?_A").is_some() {
             Some(SpecialIntrinsicKind::Typeof)
-        } else if self.mangled_name.try_consume_str(b"?_B").is_some() {
+        } else if self.mangled_name.try_consume_str("?_B").is_some() {
             Some(SpecialIntrinsicKind::LocalStaticGuard)
-        } else if self.mangled_name.try_consume_str(b"?_C").is_some() {
+        } else if self.mangled_name.try_consume_str("?_C").is_some() {
             Some(SpecialIntrinsicKind::StringLiteralSymbol)
-        } else if self.mangled_name.try_consume_str(b"?_P").is_some() {
+        } else if self.mangled_name.try_consume_str("?_P").is_some() {
             Some(SpecialIntrinsicKind::UdtReturning)
-        } else if self.mangled_name.try_consume_str(b"?_R0").is_some() {
+        } else if self.mangled_name.try_consume_str("?_R0").is_some() {
             Some(SpecialIntrinsicKind::RttiTypeDescriptor)
-        } else if self.mangled_name.try_consume_str(b"?_R1").is_some() {
+        } else if self.mangled_name.try_consume_str("?_R1").is_some() {
             Some(SpecialIntrinsicKind::RttiBaseClassDescriptor)
-        } else if self.mangled_name.try_consume_str(b"?_R2").is_some() {
+        } else if self.mangled_name.try_consume_str("?_R2").is_some() {
             Some(SpecialIntrinsicKind::RttiBaseClassArray)
-        } else if self.mangled_name.try_consume_str(b"?_R3").is_some() {
+        } else if self.mangled_name.try_consume_str("?_R3").is_some() {
             Some(SpecialIntrinsicKind::RttiClassHierarchyDescriptor)
-        } else if self.mangled_name.try_consume_str(b"?_R4").is_some() {
+        } else if self.mangled_name.try_consume_str("?_R4").is_some() {
             Some(SpecialIntrinsicKind::RttiCompleteObjLocator)
-        } else if self.mangled_name.try_consume_str(b"?_S").is_some() {
+        } else if self.mangled_name.try_consume_str("?_S").is_some() {
             Some(SpecialIntrinsicKind::LocalVftable)
-        } else if self.mangled_name.try_consume_str(b"?__E").is_some() {
+        } else if self.mangled_name.try_consume_str("?__E").is_some() {
             Some(SpecialIntrinsicKind::DynamicInitializer)
-        } else if self.mangled_name.try_consume_str(b"?__F").is_some() {
+        } else if self.mangled_name.try_consume_str("?__F").is_some() {
             Some(SpecialIntrinsicKind::DynamicAtexitDestructor)
-        } else if self.mangled_name.try_consume_str(b"?__J").is_some() {
+        } else if self.mangled_name.try_consume_str("?__J").is_some() {
             Some(SpecialIntrinsicKind::LocalStaticThreadGuard)
         } else {
             None
         }
     }
 
-    fn output_escaped_char<B: Buffer>(ob: &mut Writer<'_, B>, c: u32) -> Result<()> {
+    fn output_escaped_char<B: Buffer>(ob: &mut Writer<B>, c: u32) -> Result<()> {
         match c {
             0x00 => write!(ob, "\\0"),  // nul
             0x27 => write!(ob, "\\\'"), // single quote

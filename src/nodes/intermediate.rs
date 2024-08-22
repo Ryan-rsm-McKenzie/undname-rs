@@ -121,7 +121,7 @@ impl<'storage, 'alloc: 'storage> WriteableNode for NodeConst<'storage, 'alloc> {
     fn output<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -364,7 +364,7 @@ impl<'storage, 'alloc: 'storage> WriteableNode for TypeNodeConst<'storage, 'allo
     fn output<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         self.output_pair(cache, ob, flags)
@@ -375,7 +375,7 @@ impl<'storage, 'alloc: 'storage> WriteableTypeNode for TypeNodeConst<'storage, '
     fn output_pair<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -391,7 +391,7 @@ impl<'storage, 'alloc: 'storage> WriteableTypeNode for TypeNodeConst<'storage, '
     fn output_pre<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -407,7 +407,7 @@ impl<'storage, 'alloc: 'storage> WriteableTypeNode for TypeNodeConst<'storage, '
     fn output_post<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -562,7 +562,7 @@ impl<'storage, 'alloc: 'storage> WriteableNode for SignatureNodeConst<'storage, 
     fn output<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         self.output_pair(cache, ob, flags)
@@ -573,7 +573,7 @@ impl<'storage, 'alloc: 'storage> WriteableTypeNode for SignatureNodeConst<'stora
     fn output_pair<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -585,7 +585,7 @@ impl<'storage, 'alloc: 'storage> WriteableTypeNode for SignatureNodeConst<'stora
     fn output_pre<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -597,7 +597,7 @@ impl<'storage, 'alloc: 'storage> WriteableTypeNode for SignatureNodeConst<'stora
     fn output_post<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -670,7 +670,7 @@ impl<'storage, 'alloc: 'storage> WriteableNode for IdentifierNodeConst<'storage,
     fn output<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -806,7 +806,7 @@ impl<'storage, 'alloc: 'storage> WriteableNode for SymbolNodeConst<'storage, 'al
     fn output<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {

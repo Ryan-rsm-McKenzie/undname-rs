@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bstr::BString;
 use criterion::{
     criterion_group,
     criterion_main,
@@ -1242,7 +1241,7 @@ fn bench_many(c: &mut Criterion) {
 
     group.bench_with_input("undname", &INPUTS, |b, inputs| {
         b.iter(|| {
-            let mut output = BString::default();
+            let mut output = String::default();
             for &input in inputs {
                 _ = undname::demangle_into(input.into(), Flags::empty(), &mut output);
                 hint::black_box(&output);

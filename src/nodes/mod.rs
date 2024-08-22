@@ -116,7 +116,7 @@ use std::{
     mem,
 };
 
-fn output_space_if_necessary<B: Buffer>(ob: &mut Writer<'_, B>) -> Result<()> {
+fn output_space_if_necessary<B: Buffer>(ob: &mut Writer<B>) -> Result<()> {
     if let Some(c) = ob.last() {
         if c.is_ascii_alphanumeric() || *c == b'>' {
             write!(ob, " ")?;
@@ -129,7 +129,7 @@ pub(crate) trait WriteableNode {
     fn output<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()>;
 }
@@ -138,7 +138,7 @@ trait WriteableTypeNode {
     fn output_pair<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         self.output_pre(cache, ob, flags)?;
@@ -149,14 +149,14 @@ trait WriteableTypeNode {
     fn output_pre<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()>;
 
     fn output_post<B: Buffer>(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()>;
 }

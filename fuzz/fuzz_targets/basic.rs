@@ -17,6 +17,6 @@
 use libfuzzer_sys::fuzz_target;
 use undname::Flags;
 
-fuzz_target!(|data: &[u8]| {
-    _ = undname::demangle(data.into(), Flags::default());
+fuzz_target!(|data: &str| {
+    _ = undname::demangle(data, Flags::default());
 });

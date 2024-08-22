@@ -55,7 +55,7 @@ enum SingleQualifier {
 impl SingleQualifier {
     fn output_single_qualifier<B: Buffer>(
         self,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
     ) -> Result<()> {
         let qualifier = match self {
@@ -100,7 +100,7 @@ impl Qualifiers {
 
     pub(super) fn output<B: Buffer>(
         self,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
         space_before: bool,
         space_after: bool,
@@ -123,7 +123,7 @@ impl Qualifiers {
 
     fn output_if_present<B: Buffer>(
         self,
-        ob: &mut Writer<'_, B>,
+        ob: &mut Writer<B>,
         flags: OutputFlags,
         mask: SingleQualifier,
         needs_space: bool,
@@ -179,11 +179,7 @@ pub(crate) enum CallingConv {
 }
 
 impl CallingConv {
-    pub(super) fn output<B: Buffer>(
-        self,
-        ob: &mut Writer<'_, B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    pub(super) fn output<B: Buffer>(self, ob: &mut Writer<B>, flags: OutputFlags) -> Result<()> {
         super::output_space_if_necessary(ob)?;
         let cc = if flags.no_leading_underscores() {
             match self {

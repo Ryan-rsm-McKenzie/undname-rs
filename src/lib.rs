@@ -25,30 +25,26 @@ mod alloc;
 mod cache;
 mod demangler;
 mod extensions;
+mod mangled_string;
 mod nodes;
 
 #[cfg(test)]
 mod tests;
 
 use crate::demangler::Demangler;
-pub use bstr::{
-    BStr,
-    BString,
-    ByteSlice,
-    ByteVec,
-};
 use bumpalo::{
     collections::Vec as BumpVec,
     Bump,
 };
-use std::io::{
-    self,
-    Write,
+use std::{
+    io,
+    str::Utf8Error,
+    string::FromUtf8Error,
 };
 
 type OutputFlags = Flags;
 
-trait Buffer: Write {
+trait Buffer: io::Write {
     fn last(&self) -> Option<&u8>;
     fn len(&self) -> usize;
 }
@@ -73,12 +69,12 @@ impl<'bump> Buffer for BumpVec<'bump, u8> {
     }
 }
 
-struct Writer<'buffer, B: Buffer> {
-    buffer: &'buffer mut B,
+struct Writer<B: Buffer> {
+    buffer: B,
 }
 
-impl<'buffer, B: Buffer> Writer<'buffer, B> {
-    fn new(buffer: &'buffer mut B) -> Self {
+impl<B: Buffer> Writer<B> {
+    fn new(buffer: B) -> Self {
         Self { buffer }
     }
 
@@ -91,22 +87,30 @@ impl<'buffer, B: Buffer> Writer<'buffer, B> {
     }
 }
 
-impl<B: Buffer> io::Write for Writer<'_, B> {
+impl<B: Buffer> io::Write for Writer<B> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let final_len = buf.len().saturating_add(self.buffer.len());
-        if final_len > (1 << 20) {
+        let final_len = buf.len().checked_add(self.buffer.len());
+        if matches!(final_len, Some(x) if x < (1 << 20)) {
+            self.buffer.write(buf)
+        } else {
             // a demangled string that's over a mb in length? bail
             Err(io::Error::new(
                 io::ErrorKind::OutOfMemory,
                 Error::MaliciousInput,
             ))
-        } else {
-            self.buffer.write(buf)
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
         self.buffer.flush()
+    }
+}
+
+impl<'bump> TryFrom<Writer<BumpVec<'bump, u8>>> for &'bump str {
+    type Error = Utf8Error;
+
+    fn try_from(value: Writer<BumpVec<'bump, u8>>) -> std::result::Result<Self, Self::Error> {
+        std::str::from_utf8(value.buffer.into_bump_slice())
     }
 }
 
@@ -245,11 +249,26 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
 
+    #[error("string demangled to an invalid utf-8 sequence")]
+    Utf8Error,
+
     #[error("input string was likely malicious and would have triggered an out of memory panic")]
     MaliciousInput,
 
     #[error("tried to save too many backrefs")]
     TooManyBackRefs,
+}
+
+impl From<Utf8Error> for Error {
+    fn from(_: Utf8Error) -> Self {
+        Self::Utf8Error
+    }
+}
+
+impl From<FromUtf8Error> for Error {
+    fn from(_: FromUtf8Error) -> Self {
+        Self::Utf8Error
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -440,14 +459,14 @@ impl Flags {
 /// let result = undname::demangle(b"?world@@YA?AUhello@@XZ".into(), Flags::default()).unwrap();
 /// assert_eq!(result, b"struct hello __cdecl world(void)"[..]);
 /// ```
-pub fn demangle(mangled_name: &BStr, flags: Flags) -> Result<BString> {
-    let mut result = BString::default();
+pub fn demangle(mangled_name: &str, flags: Flags) -> Result<String> {
+    let mut result = String::default();
     demangle_into(mangled_name, flags, &mut result)?;
     Ok(result)
 }
 
 /// See [`demangle`] for more info.
-pub fn demangle_into(mangled_name: &BStr, flags: Flags, result: &mut BString) -> Result<()> {
+pub fn demangle_into(mangled_name: &str, flags: Flags, result: &mut String) -> Result<()> {
     let alloc = Bump::default();
     let d = Demangler::new(mangled_name, flags, &alloc);
     result.clear();
