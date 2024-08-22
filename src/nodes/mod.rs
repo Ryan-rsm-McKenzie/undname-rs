@@ -117,8 +117,8 @@ use std::{
 };
 
 fn output_space_if_necessary<B: Buffer>(ob: &mut Writer<B>) -> Result<()> {
-    if let Some(c) = ob.last() {
-        if c.is_ascii_alphanumeric() || *c == b'>' {
+    if let Some(c) = ob.last_char() {
+        if c.is_alphanumeric() || c == '>' {
             write!(ob, " ")?;
         }
     }

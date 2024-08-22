@@ -45,27 +45,29 @@ use std::{
 type OutputFlags = Flags;
 
 trait Buffer: io::Write {
-    fn last(&self) -> Option<&u8>;
-    fn len(&self) -> usize;
+    fn as_bytes(&self) -> &[u8];
+
+    fn len_bytes(&self) -> usize {
+        self.as_bytes().len()
+    }
+
+    fn last_char(&self) -> Option<char> {
+        match std::str::from_utf8(self.as_bytes()) {
+            Ok(string) => string.chars().next_back(),
+            Err(_) => None,
+        }
+    }
 }
 
 impl Buffer for Vec<u8> {
-    fn last(&self) -> Option<&u8> {
-        self.as_slice().last()
-    }
-
-    fn len(&self) -> usize {
-        self.len()
+    fn as_bytes(&self) -> &[u8] {
+        self.as_slice()
     }
 }
 
 impl<'bump> Buffer for BumpVec<'bump, u8> {
-    fn last(&self) -> Option<&u8> {
-        self.as_slice().last()
-    }
-
-    fn len(&self) -> usize {
-        self.len()
+    fn as_bytes(&self) -> &[u8] {
+        self.as_slice()
     }
 }
 
@@ -78,18 +80,18 @@ impl<B: Buffer> Writer<B> {
         Self { buffer }
     }
 
-    fn last(&self) -> Option<&u8> {
-        self.buffer.last()
+    fn last_char(&self) -> Option<char> {
+        self.buffer.last_char()
     }
 
-    fn len(&self) -> usize {
-        self.buffer.len()
+    fn len_bytes(&self) -> usize {
+        self.buffer.len_bytes()
     }
 }
 
 impl<B: Buffer> io::Write for Writer<B> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let final_len = buf.len().checked_add(self.buffer.len());
+        let final_len = buf.len().checked_add(self.buffer.len_bytes());
         if matches!(final_len, Some(x) if x < (1 << 20)) {
             self.buffer.write(buf)
         } else {

@@ -3454,3 +3454,9 @@ fn test_name_only() {
     );
     test_option(".?AVtype_info@@", "type_info");
 }
+
+#[test]
+fn test_unicode() {
+    test(".?AUМосква@@", "struct Москва `RTTI Type Descriptor Name'");
+    test(".?AU東京@@", "struct 東京 `RTTI Type Descriptor Name'");
+}

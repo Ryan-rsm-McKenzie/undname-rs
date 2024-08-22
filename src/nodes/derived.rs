@@ -228,7 +228,7 @@ impl FunctionSignatureNode {
             }
 
             if self.is_variadic {
-                if ob.last().is_some_and(|x| *x != b'(') {
+                if ob.last_char().is_some_and(|x| x != '(') {
                     write!(ob, ", ")?;
                 }
                 write!(ob, "...")?;

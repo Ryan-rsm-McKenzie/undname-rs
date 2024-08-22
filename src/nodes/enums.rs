@@ -106,13 +106,13 @@ impl Qualifiers {
         space_after: bool,
     ) -> Result<()> {
         if self != Self::Q_None {
-            let len_before = ob.len();
+            let len_before = ob.len_bytes();
             let space_before =
                 self.output_if_present(ob, flags, SingleQualifier::Const, space_before)?;
             let space_before =
                 self.output_if_present(ob, flags, SingleQualifier::Volatile, space_before)?;
             self.output_if_present(ob, flags, SingleQualifier::Restrict, space_before)?;
-            let len_after = ob.len();
+            let len_after = ob.len_bytes();
             if space_after && len_after > len_before {
                 write!(ob, " ")?;
             }
