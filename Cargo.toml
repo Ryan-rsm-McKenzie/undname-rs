@@ -20,17 +20,17 @@ repository = "https://github.com/Ryan-rsm-McKenzie/undname-rs"
 version = "1.1.2"
 
 [dependencies]
-arrayvec = "0.7.4"
-bitflags = "2.5.0"
-bumpalo = {version = "3.16.0", features = ["collections", "std"]}
-nonmax = "0.5.5"
-smallvec = "1.13.2"
-thiserror = "1.0.61"
+arrayvec = {version = "0.7.6", default-features = false}
+bitflags = {version = "2.6.0", default-features = false}
+bumpalo = {version = "3.16.0", features = ["collections", "std"], default-features = false}
+nonmax = {version = "0.5.5", default-features = false}
+smallvec = {version = "1.13.2", default-features = false}
+thiserror = {version = "1.0.63", default-features = false}
 
 [dev-dependencies]
-clap = {version = "4.5.4", features = ["derive"]}
+clap = {version = "4.5.16", features = ["derive"]}
 criterion = "0.5.1"
-memchr = "2.7.2"
+memchr = "2.7.4"
 msvc-demangler = "0.10.1"
 
 [[bench]]
@@ -38,7 +38,7 @@ harness = false
 name = "comparison"
 
 [target."cfg(windows)".dev-dependencies]
-windows = {version = "0.56.0", features = [
+windows = {version = "0.58.0", features = [
   "Win32_System_Diagnostics_Debug",
 ]}
 
