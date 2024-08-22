@@ -803,10 +803,10 @@ fn test_basic() {
     );
     test("?x@ns@@3HA", "int ns::x");
     test("?x@@3PEAHEA", "int *x");
-    test("?x@@3PEBHE", "int const *x");
+    test("?x@@3PEBHEB", "int const *x");
     test("?x@@3QEAHEA", "int *const x");
-    test("?x@@3QEBHE", "int const *const x");
-    test("?x@@3AEBHE", "int const &x");
+    test("?x@@3QEBHEB", "int const *const x");
+    test("?x@@3AEBHEB", "int const &x");
     test("?x@@3PEAUty@@EA", "struct ty *x");
     test("?x@@3PEATty@@EA", "union ty *x");
     test("?x@@3PEAVty@@EA", "class ty *x");
@@ -905,7 +905,7 @@ fn test_basic() {
         "void __cdecl operator delete[](void *, class klass &)",
     );
     test(
-        "?A@?A0x43583946@@3VB@@",
+        "?A@?A0x43583946@@3VB@@B",
         "class B const `anonymous namespace'::A",
     );
 }
@@ -980,7 +980,7 @@ fn test_cxx11() {
     );
     test(
         "?b@FTypeWithQuals@@3U?$S@$$A8@@CAHXZ@1@A",
-        "struct FTypeWithQuals::S<int __cdecl(void) volatile> FTypeWithQuals::",
+        "struct FTypeWithQuals::S<int __cdecl(void) volatile> FTypeWithQuals::b",
     );
     test(
         "?c@FTypeWithQuals@@3U?$S@$$A8@@IAAHXZ@1@A",
@@ -1198,21 +1198,21 @@ fn test_cxx20() {
 #[test]
 fn test_mangle() {
     test("?a@@3HA", "int a");
-    test("?b@N@@3HA", "int N::");
+    test("?b@N@@3HA", "int N::b");
     test(
         "?anonymous@?A@N@@3HA",
         "int N::`anonymous namespace'::anonymous",
     );
     test(
-        "?$RT1@NeedsReferenceTemporary@@3ABH",
+        "?$RT1@NeedsReferenceTemporary@@3ABHB",
         "int const &NeedsReferenceTemporary::$RT1",
     );
     test(
-        "?$RT1@NeedsReferenceTemporary@@3AEBHE",
+        "?$RT1@NeedsReferenceTemporary@@3AEBHEB",
         "int const &NeedsReferenceTemporary::$RT1",
     );
     test("?_c@@YAHXZ", "int __cdecl _c(void)");
-    test("?d@foo@@0F", "static short const foo::d");
+    test("?d@foo@@0FB", "static short const foo::d");
     test("?e@foo@@1JC", "static long volatile foo::e");
     test("?f@foo@@2DD", "static char const volatile foo::f");
     test("??0foo@@QAE@XZ", "__thiscall foo::foo(void)");
@@ -1241,7 +1241,7 @@ fn test_mangle() {
     );
     test("?g@bar@@2HA", "static int bar::g");
     test("?h1@@3QAHA", "int *const h1");
-    test("?h2@@3QBH", "int const *const h2");
+    test("?h2@@3QBHB", "int const *const h2");
     test("?h3@@3QIAHIA", "int *const __restrict h3");
     test("?h3@@3QEIAHEIA", "int *const __restrict h3");
     test("?i@@3PAY0BE@HA", "int (*i)[20]");
@@ -1262,7 +1262,7 @@ fn test_mangle() {
     test("?k@@3PTfoo@@DT1@", "char const volatile foo::*k");
     test("?k@@3PETfoo@@DET1@", "char const volatile foo::*k");
     test("?l@@3P8foo@@AEHH@ZQ1@", "int (__thiscall foo::*l)(int)");
-    test("?g_cInt@@3H", "int const g_cInt");
+    test("?g_cInt@@3HB", "int const g_cInt");
     test("?g_vInt@@3HC", "int volatile g_vInt");
     test("?g_cvInt@@3HD", "int const volatile g_cvInt");
     test(
@@ -1312,7 +1312,7 @@ fn test_mangle() {
     );
     test("??_V@YAXPAX@Z", "void __cdecl operator delete[](void *)");
     test("?color1@@3PANA", "double *color1");
-    test("?color2@@3QBN", "double const *const color2");
+    test("?color2@@3QBNB", "double const *const color2");
     test("?color3@@3QAY02$$CBNA", "double const (*const color3)[3]");
     test("?color4@@3QAY02$$CBNA", "double const (*const color4)[3]");
     test(
@@ -1375,14 +1375,14 @@ fn test_mangle() {
     test("?fooX@@YA?AVX@@XZ", "class X __cdecl fooX(void)");
     test("?s0@PR13182@@3PADA", "char *PR13182::s0");
     test("?s1@PR13182@@3PADA", "char *PR13182::s1");
-    test("?s2@PR13182@@3QBD", "char const *const PR13182::s2");
-    test("?s3@PR13182@@3QBD", "char const *const PR13182::s3");
+    test("?s2@PR13182@@3QBDB", "char const *const PR13182::s2");
+    test("?s3@PR13182@@3QBDB", "char const *const PR13182::s3");
     test("?s4@PR13182@@3RCDC", "char volatile *volatile PR13182::s4");
     test(
         "?s5@PR13182@@3SDDD",
         "char const volatile *const volatile PR13182::s5",
     );
-    test("?s6@PR13182@@3PBQBD", "char const *const *PR13182::s6");
+    test("?s6@PR13182@@3PBQBDB", "char const *const *PR13182::s6");
     test(
         "?local@?1??extern_c_func@@9@4HA",
         "int `extern \"C\" extern_c_func'::`2'::local",
@@ -1642,16 +1642,16 @@ fn test_nested_scopes() {
         "?SN@?1??0?$NS@H@0NS@@QEAAHXZ@4HA",
         "int `public: int __cdecl NS::SN::NS<int>::SN(void)'::`2'::SN",
     );
-    test("?X@?$C@H@C@0@2H", "static int const X::C::C<int>::X");
-    test("?X@?$C@H@C@1@2H", "static int const C<int>::C::C<int>::X");
-    test("?X@?$C@H@C@2@2H", "static int const C::C::C<int>::X");
+    test("?X@?$C@H@C@0@2HB", "static int const X::C::C<int>::X");
+    test("?X@?$C@H@C@1@2HB", "static int const C<int>::C::C<int>::X");
+    test("?X@?$C@H@C@2@2HB", "static int const C::C::C<int>::X");
     test(
         "?C@?1??B@?$C@H@0101A@@QEAAHXZ@4U201013@A",
         "struct A::B::C::B::C::C<int> `public: int __cdecl A::B::C::B::C::C<int>::B(void)'::`2'::C",
     );
     test(
         "?B@?1??0?$C@H@C@020A@@QEAAHXZ@4HA",
-        "int `public: int __cdecl A::B::C::B::C::C<int>::B(void)'::`2'::",
+        "int `public: int __cdecl A::B::C::B::C::C<int>::B(void)'::`2'::B",
     );
     test(
         "?A@?1??B@?$C@H@C@1310@QEAAHXZ@4HA",
@@ -3212,7 +3212,7 @@ fn test_no_this_type() {
     );
     test_option(
         "?b@FTypeWithQuals@@3U?$S@$$A8@@CAHXZ@1@A",
-        "struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::",
+        "struct FTypeWithQuals::S<int __cdecl(void)> FTypeWithQuals::b",
     );
     test_option(
         "?c@FTypeWithQuals@@3U?$S@$$A8@@IAAHXZ@1@A",
@@ -3315,7 +3315,7 @@ fn test_name_only() {
     test_option("?f2@@YA?BUS@@XZ", "f2");
     test_option("??Hfoo@@QAEHH@Z", "foo::operator+");
     test_option("?M@?1??L@@YAHXZ@4HA", "`L'::`2'::M");
-    test_option("?h2@@3QBH", "h2");
+    test_option("?h2@@3QBHB", "h2");
     test_option(
         "??$Foo@H@?$BoolTemplate@$00@@QEAAXH@Z",
         "BoolTemplate<1>::Foo<int>",
@@ -3356,7 +3356,7 @@ fn test_name_only() {
         "?lambda@?1??define_lambda@@YAHXZ@4V<lambda_1>@?0??1@YAHXZ@A",
         "`define_lambda'::`2'::lambda",
     );
-    test_option("?X@?$C@H@C@0@2H", "X::C::C<int>::X");
+    test_option("?X@?$C@H@C@0@2HB", "X::C::C<int>::X");
     test_option("?d5@@YAPBV?$B@VA@@@@XZ", "d5");
     test_option("??IBase@@QEAAHH@Z", "Base::operator&");
     test_option("?ret_fnptrarray@@YAP6AXQAH@ZXZ", "ret_fnptrarray");
@@ -3401,7 +3401,7 @@ fn test_name_only() {
         "FTypeWithQuals::l",
     );
     test_option("?mangle_yes_backref1@@YAXQEAH0@Z", "mangle_yes_backref1");
-    test_option("?x@@3QEBHE", "x");
+    test_option("?x@@3QEBHEB", "x");
     test_option("?priv_stat_foo@S@@CAXXZ", "S::priv_stat_foo");
     test_option(
         "??$CallMethod@UO@@$H??_91@$BA@AE3@@YAXAAUO@@@Z",

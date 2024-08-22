@@ -11,6 +11,6 @@ Changelogs are available at: <https://github.com/Ryan-rsm-McKenzie/undname-rs/re
 
 ```rust
 use undname::Flags;
-let result = undname::demangle(b"?world@@YA?AUhello@@XZ".into(), Flags::default()).unwrap();
-assert_eq!(result, b"struct hello __cdecl world(void)"[..]);
+let result = undname::demangle("?world@@YA?AUhello@@XZ", Flags::default()).unwrap();
+assert_eq!(result, "struct hello __cdecl world(void)");
 ```

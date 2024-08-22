@@ -280,11 +280,11 @@ bitflags::bitflags! {
         /// Suppress calling conventions (`__cdecl`/`__fastcall`/`__thiscall`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
+        /// let input = "?func@MyClass@@UEAAHHH@Z";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_CALLING_CONVENTION).unwrap();
-        /// assert_eq!(without_flag, b"public: virtual int __cdecl MyClass::func(int, int)"[..]);
-        /// assert_eq!(with_flag,    b"public: virtual int MyClass::func(int, int)"[..]);
+        /// assert_eq!(without_flag, "public: virtual int __cdecl MyClass::func(int, int)");
+        /// assert_eq!(with_flag,    "public: virtual int MyClass::func(int, int)");
         /// ```
         const NO_CALLING_CONVENTION = 1 << 0;
 
@@ -294,11 +294,11 @@ bitflags::bitflags! {
         /// Suppress tag specifiers (`class`/`struct`/`union`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?x@@3PEAVty@@EA".into();
+        /// let input = "?x@@3PEAVty@@EA";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_TAG_SPECIFIER).unwrap();
-        /// assert_eq!(without_flag, b"class ty *x"[..]);
-        /// assert_eq!(with_flag,    b"ty *x"[..]);
+        /// assert_eq!(without_flag, "class ty *x");
+        /// assert_eq!(with_flag,    "ty *x");
         /// ```
         const NO_TAG_SPECIFIER = 1 << 1;
 
@@ -308,11 +308,11 @@ bitflags::bitflags! {
         /// Suppress access specifiers (`private`/`public`/`protected`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
+        /// let input = "?func@MyClass@@UEAAHHH@Z";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_ACCESS_SPECIFIER).unwrap();
-        /// assert_eq!(without_flag, b"public: virtual int __cdecl MyClass::func(int, int)"[..]);
-        /// assert_eq!(with_flag,    b"virtual int __cdecl MyClass::func(int, int)"[..]);
+        /// assert_eq!(without_flag, "public: virtual int __cdecl MyClass::func(int, int)");
+        /// assert_eq!(with_flag,    "virtual int __cdecl MyClass::func(int, int)");
         /// ```
         const NO_ACCESS_SPECIFIER = 1 << 2;
 
@@ -322,22 +322,22 @@ bitflags::bitflags! {
         /// Suppress member types (`static`/`virtual`/`extern "C"`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
+        /// let input = "?func@MyClass@@UEAAHHH@Z";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_MEMBER_TYPE).unwrap();
-        /// assert_eq!(without_flag, b"public: virtual int __cdecl MyClass::func(int, int)"[..]);
-        /// assert_eq!(with_flag,    b"public: int __cdecl MyClass::func(int, int)"[..]);
+        /// assert_eq!(without_flag, "public: virtual int __cdecl MyClass::func(int, int)");
+        /// assert_eq!(with_flag,    "public: int __cdecl MyClass::func(int, int)");
         /// ```
         const NO_MEMBER_TYPE = 1 << 3;
 
         /// Suppress return types from being included in the output.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?func@MyClass@@UEAAHHH@Z".into();
+        /// let input = "?func@MyClass@@UEAAHHH@Z";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_RETURN_TYPE).unwrap();
-        /// assert_eq!(without_flag, b"public: virtual int __cdecl MyClass::func(int, int)"[..]);
-        /// assert_eq!(with_flag,    b"public: virtual __cdecl MyClass::func(int, int)"[..]);
+        /// assert_eq!(without_flag, "public: virtual int __cdecl MyClass::func(int, int)");
+        /// assert_eq!(with_flag,    "public: virtual __cdecl MyClass::func(int, int)");
         /// ```
         const NO_RETURN_TYPE = 1 << 4;
 
@@ -347,55 +347,55 @@ bitflags::bitflags! {
         /// Suppress variable types from being included in the output.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?x@@3PEAEEA".into();
+        /// let input = "?x@@3PEAEEA";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_VARIABLE_TYPE).unwrap();
-        /// assert_eq!(without_flag, b"unsigned char *x"[..]);
-        /// assert_eq!(with_flag,    b"x"[..]);
+        /// assert_eq!(without_flag, "unsigned char *x");
+        /// assert_eq!(with_flag,    "x");
         /// ```
         const NO_VARIABLE_TYPE = 1 << 5;
 
         /// Suppress modifiers on the `this` type (`const`/`volatile`/`__restrict`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?world@hello@@QEDAXXZ".into();
+        /// let input = "?world@hello@@QEDAXXZ";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_THISTYPE).unwrap();
-        /// assert_eq!(without_flag, b"public: void __cdecl hello::world(void) const volatile"[..]);
-        /// assert_eq!(with_flag,    b"public: void __cdecl hello::world(void)"[..]);
+        /// assert_eq!(without_flag, "public: void __cdecl hello::world(void) const volatile");
+        /// assert_eq!(with_flag,    "public: void __cdecl hello::world(void)");
         /// ```
         const NO_THISTYPE = 1 << 6;
 
         /// Suppress leading underscores on Microsoft extended keywords (`__restrict`/`__cdecl`/`__fastcall`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?foo_piad@@YAXPIAD@Z".into();
+        /// let input = "?foo_piad@@YAXPIAD@Z";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_LEADING_UNDERSCORES).unwrap();
-        /// assert_eq!(without_flag, b"void __cdecl foo_piad(char *__restrict)"[..]);
-        /// assert_eq!(with_flag,    b"void cdecl foo_piad(char *restrict)"[..]);
+        /// assert_eq!(without_flag, "void __cdecl foo_piad(char *__restrict)");
+        /// assert_eq!(with_flag,    "void cdecl foo_piad(char *restrict)");
         /// ```
         const NO_LEADING_UNDERSCORES = 1 << 7;
 
         /// Suppress Microsoft keywords (`__restrict`/`__unaligned`/`__cdecl`) from being included in the output.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?f@@YAXPEIFAH@Z".into();
+        /// let input = "?f@@YAXPEIFAH@Z";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NO_MS_KEYWORDS).unwrap();
-        /// assert_eq!(without_flag, b"void __cdecl f(int __unaligned *__restrict)"[..]);
-        /// assert_eq!(with_flag,    b"void f(int *)"[..]);
+        /// assert_eq!(without_flag, "void __cdecl f(int __unaligned *__restrict)");
+        /// assert_eq!(with_flag,    "void f(int *)");
         /// ```
         const NO_MS_KEYWORDS = 1 << 8;
 
         /// Output only the name for the primary declaration.
         /// ```rust
         /// use undname::Flags;
-        /// let input = b"?world@hello@@QEDAXXZ".into();
+        /// let input = "?world@hello@@QEDAXXZ";
         /// let without_flag = undname::demangle(input, Flags::default()).unwrap();
         /// let with_flag = undname::demangle(input, Flags::NAME_ONLY).unwrap();
-        /// assert_eq!(without_flag, b"public: void __cdecl hello::world(void) const volatile"[..]);
-        /// assert_eq!(with_flag,    b"hello::world"[..]);
+        /// assert_eq!(without_flag, "public: void __cdecl hello::world(void) const volatile");
+        /// assert_eq!(with_flag,    "hello::world");
         /// ```
         const NAME_ONLY = 1 << 9;
     }
@@ -456,8 +456,8 @@ impl Flags {
 /// Demangles a Microsoft symbol stored in `mangled_name`.
 /// ```rust
 /// use undname::Flags;
-/// let result = undname::demangle(b"?world@@YA?AUhello@@XZ".into(), Flags::default()).unwrap();
-/// assert_eq!(result, b"struct hello __cdecl world(void)"[..]);
+/// let result = undname::demangle("?world@@YA?AUhello@@XZ", Flags::default()).unwrap();
+/// assert_eq!(result, "struct hello __cdecl world(void)");
 /// ```
 pub fn demangle(mangled_name: &str, flags: Flags) -> Result<String> {
     let mut result = String::default();
