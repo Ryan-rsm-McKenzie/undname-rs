@@ -3502,3 +3502,12 @@ fn test_auto() {
     test("??$emplace_back@M@?$vector@MV?$allocator@M@std@@@std@@QEAA?A_T$$QEAM@Z", "public: decltype(auto) __cdecl std::vector<float, class std::allocator<float>>::emplace_back<float>(float &&)");
     test("??$_Emplace_back_with_unused_capacity@M@?$vector@MV?$allocator@M@std@@@std@@AEAA?A_T$$QEAM@Z", "private: decltype(auto) __cdecl std::vector<float, class std::allocator<float>>::_Emplace_back_with_unused_capacity<float>(float &&)");
 }
+
+#[test]
+fn test_alloc_preserved_on_failure() {
+    let mut buffer = String::new();
+    buffer.reserve(0x1000);
+    let result = crate::demangle_into("abc", Flags::default(), &mut buffer);
+    debug_assert!(result.is_err());
+    debug_assert!(buffer.capacity() >= 0x1000);
+}

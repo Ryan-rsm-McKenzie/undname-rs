@@ -171,13 +171,35 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     }
 
     pub(crate) fn parse_into(mut self, result: &mut String) -> Result<()> {
+        // in case of error, we should give the allocated buffer back to the user
+        macro_rules! safe_restore_buffer {
+            ($($buffer:tt)+) => {
+                let mut buffer = $($buffer)+;
+                buffer.clear();
+                // SAFETY: buffer is an empty string at this point
+                *result = unsafe { String::from_utf8_unchecked(buffer) };
+            };
+        }
+
         let ast = self.do_parse()?.resolve(&self.cache);
         let mut ob = Writer::<Vec<u8>> {
             buffer: mem::take(result).into(),
         };
-        ast.output(&self.cache, &mut ob, self.flags)?;
-        *result = String::from_utf8(ob.buffer)?;
-        Ok(())
+        if let Err(err) = ast.output(&self.cache, &mut ob, self.flags) {
+            safe_restore_buffer!(ob.buffer);
+            Err(err)
+        } else {
+            match String::from_utf8(ob.buffer) {
+                Ok(ok) => {
+                    *result = ok;
+                    Ok(())
+                }
+                Err(err) => {
+                    safe_restore_buffer!(err.into_bytes());
+                    Err(Error::Utf8Error)
+                }
+            }
+        }
     }
 
     fn do_parse(&mut self) -> Result<NodeHandle<ISymbolNode>> {
