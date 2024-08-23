@@ -115,6 +115,8 @@ impl WriteableTypeNode for PrimitiveTypeNode {
             PrimitiveKind::Double => "double",
             PrimitiveKind::Ldouble => "long double",
             PrimitiveKind::Nullptr => "std::nullptr_t",
+            PrimitiveKind::Auto => "auto",
+            PrimitiveKind::DecltypeAuto => "decltype(auto)",
         };
         write!(ob, "{kind}")?;
         self.quals.output(ob, flags, true, false)

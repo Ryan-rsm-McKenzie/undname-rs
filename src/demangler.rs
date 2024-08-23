@@ -512,6 +512,8 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                         'Q' => PrimitiveKind::Char8,
                         'S' => PrimitiveKind::Char16,
                         'U' => PrimitiveKind::Char32,
+                        'P' => PrimitiveKind::Auto,
+                        'T' => PrimitiveKind::DecltypeAuto,
                         _ => return Err(Error::InvalidPrimitiveType),
                     }
                 }

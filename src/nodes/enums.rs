@@ -236,6 +236,8 @@ pub(crate) enum PrimitiveKind {
     Double,
     Ldouble,
     Nullptr,
+    Auto,
+    DecltypeAuto,
 }
 
 #[derive(Clone, Copy)]

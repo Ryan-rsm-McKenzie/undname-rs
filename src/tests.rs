@@ -3460,3 +3460,45 @@ fn test_unicode() {
     test(".?AUМосква@@", "struct Москва `RTTI Type Descriptor Name'");
     test(".?AU東京@@", "struct 東京 `RTTI Type Descriptor Name'");
 }
+
+#[test]
+fn test_auto() {
+    test("?_Do_call@?$_Func_impl_no_alloc@V<lambda_1>@?6???$?RV<lambda_6>@?EF@??OnEvent@Interface@@UEAAXAEBVEvent@@@Z@@<lambda_3>@?DB@??OnEvent@Interface@@UEAAXAEBVEvent@@@Z@QEBA?A_PV<lambda_6>@?EF@??34@UEAAX0@Z@_N@Z@I$$V@std@@EEAAIXZ", "private: virtual unsigned int __cdecl std::_Func_impl_no_alloc<class `public: auto __cdecl `public: virtual void __cdecl Interface::OnEvent(class Event const &)'::`49'::<lambda_3>::operator()<class `public: virtual void __cdecl Interface::OnEvent(class Event const &)'::`69'::<lambda_6>>(class `public: virtual void __cdecl Interface::OnEvent(class Event const &)'::`69'::<lambda_6>, bool) const'::`7'::<lambda_1>, unsigned int>::_Do_call(void)");
+    test("??$emplace_back@AEBM@?$vector@MV?$allocator@M@std@@@std@@QEAA?A_TAEBM@Z", "public: decltype(auto) __cdecl std::vector<float, class std::allocator<float>>::emplace_back<float const &>(float const &)");
+    test("??$_Emplace_back_with_unused_capacity@AEBM@?$vector@MV?$allocator@M@std@@@std@@AEAA?A_TAEBM@Z", "private: decltype(auto) __cdecl std::vector<float, class std::allocator<float>>::_Emplace_back_with_unused_capacity<float const &>(float const &)");
+    test("??$emplace_back@N@?$vector@NV?$allocator@N@std@@@std@@QEAA?A_T$$QEAN@Z", "public: decltype(auto) __cdecl std::vector<double, class std::allocator<double>>::emplace_back<double>(double &&)");
+    test("??$_Emplace_back_with_unused_capacity@N@?$vector@NV?$allocator@N@std@@@std@@AEAA?A_T$$QEAN@Z", "private: decltype(auto) __cdecl std::vector<double, class std::allocator<double>>::_Emplace_back_with_unused_capacity<double>(double &&)");
+    test("??$emplace_back@AEBN@?$vector@NV?$allocator@N@std@@@std@@QEAA?A_TAEBN@Z", "public: decltype(auto) __cdecl std::vector<double, class std::allocator<double>>::emplace_back<double const &>(double const &)");
+    test("??$_Emplace_back_with_unused_capacity@AEBN@?$vector@NV?$allocator@N@std@@@std@@AEAA?A_TAEBN@Z", "private: decltype(auto) __cdecl std::vector<double, class std::allocator<double>>::_Emplace_back_with_unused_capacity<double const &>(double const &)");
+    test(
+        "??$_To_address@PEAN@std@@YA?A_PAEBQEAN@Z",
+        "auto __cdecl std::_To_address<double *>(double *const &)",
+    );
+    test(
+        "??$_To_address@PEAM@std@@YA?A_PAEBQEAM@Z",
+        "auto __cdecl std::_To_address<float *>(float *const &)",
+    );
+    test(
+        "??$_Get_unwrapped@AEBQEAM@std@@YA?A_TAEBQEAM@Z",
+        "decltype(auto) __cdecl std::_Get_unwrapped<float *const &>(float *const &)",
+    );
+    test(
+        "??$_Get_unwrapped@AEBQEAN@std@@YA?A_TAEBQEAN@Z",
+        "decltype(auto) __cdecl std::_Get_unwrapped<double *const &>(double *const &)",
+    );
+    test("??$emplace_back@AEBH@?$vector@HV?$allocator@H@std@@@std@@QEAA?A_TAEBH@Z", "public: decltype(auto) __cdecl std::vector<int, class std::allocator<int>>::emplace_back<int const &>(int const &)");
+    test("??$_Emplace_back_with_unused_capacity@AEBH@?$vector@HV?$allocator@H@std@@@std@@AEAA?A_TAEBH@Z", "private: decltype(auto) __cdecl std::vector<int, class std::allocator<int>>::_Emplace_back_with_unused_capacity<int const &>(int const &)");
+    test(
+        "??$_Get_unwrapped@AEBQEAH@std@@YA?A_TAEBQEAH@Z",
+        "decltype(auto) __cdecl std::_Get_unwrapped<int *const &>(int *const &)",
+    );
+    test(
+        "??$_To_address@PEAH@std@@YA?A_PAEBQEAH@Z",
+        "auto __cdecl std::_To_address<int *>(int *const &)",
+    );
+    test("??$_Get_unwrapped@AEBQEAV?$vector@V?$vector@UMYRECT@@V?$allocator@UMYRECT@@@std@@@std@@V?$allocator@V?$vector@UMYRECT@@V?$allocator@UMYRECT@@@std@@@std@@@2@@std@@@std@@YA?A_TAEBQEAV?$vector@V?$vector@UMYRECT@@V?$allocator@UMYRECT@@@std@@@std@@V?$allocator@V?$vector@UMYRECT@@V?$allocator@UMYRECT@@@std@@@std@@@2@@0@@Z", "decltype(auto) __cdecl std::_Get_unwrapped<class std::vector<class std::vector<struct MYRECT, class std::allocator<struct MYRECT>>, class std::allocator<class std::vector<struct MYRECT, class std::allocator<struct MYRECT>>>> *const &>(class std::vector<class std::vector<struct MYRECT, class std::allocator<struct MYRECT>>, class std::allocator<class std::vector<struct MYRECT, class std::allocator<struct MYRECT>>>> *const &)");
+    test("??$_Get_unwrapped@AEBQEAV?$vector@UMYRECT@@V?$allocator@UMYRECT@@@std@@@std@@@std@@YA?A_TAEBQEAV?$vector@UMYRECT@@V?$allocator@UMYRECT@@@std@@@0@@Z", "decltype(auto) __cdecl std::_Get_unwrapped<class std::vector<struct MYRECT, class std::allocator<struct MYRECT>> *const &>(class std::vector<struct MYRECT, class std::allocator<struct MYRECT>> *const &)");
+    test("??$_Get_unwrapped@AEBQEAUMYRECT@@@std@@YA?A_TAEBQEAUMYRECT@@@Z", "decltype(auto) __cdecl std::_Get_unwrapped<struct MYRECT *const &>(struct MYRECT *const &)");
+    test("??$emplace_back@M@?$vector@MV?$allocator@M@std@@@std@@QEAA?A_T$$QEAM@Z", "public: decltype(auto) __cdecl std::vector<float, class std::allocator<float>>::emplace_back<float>(float &&)");
+    test("??$_Emplace_back_with_unused_capacity@M@?$vector@MV?$allocator@M@std@@@std@@AEAA?A_T$$QEAM@Z", "private: decltype(auto) __cdecl std::vector<float, class std::allocator<float>>::_Emplace_back_with_unused_capacity<float>(float &&)");
+}
