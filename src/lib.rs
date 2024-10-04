@@ -256,9 +256,6 @@ pub enum Error {
 
     #[error("input string was likely malicious and would have triggered an out of memory panic")]
     MaliciousInput,
-
-    #[error("tried to save too many backrefs")]
-    TooManyBackRefs,
 }
 
 impl From<Utf8Error> for Error {

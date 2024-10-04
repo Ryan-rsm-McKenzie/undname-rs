@@ -1003,23 +1003,20 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
     // First 10 strings can be referenced by special BackReferences ?0, ?1, ..., ?9.
     // Memorize it.
     fn memorize_string(&mut self, s: &'alloc str) -> Result<()> {
-        if self
-            .backrefs
-            .names
-            .iter()
-            .any(|x| x.resolve(&self.cache).name == s)
+        if !self.backrefs.names.is_full()
+            && self
+                .backrefs
+                .names
+                .iter()
+                .all(|x| x.resolve(&self.cache).name != s)
         {
-            Ok(())
-        } else {
             let name = self.cache.intern(NamedIdentifierNode {
                 name: s,
                 ..Default::default()
             })?;
-            self.backrefs
-                .names
-                .try_push(name)
-                .map_err(|_| Error::TooManyBackRefs)
+            unsafe { self.backrefs.names.push_unchecked(name) };
         }
+        Ok(())
     }
 
     fn memorize_identifier(&mut self, identifier: NodeHandle<IIdentifierNode>) -> Result<()> {
