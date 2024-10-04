@@ -14,6 +14,7 @@
 
 #![doc = include_str!("../README.md")]
 #![warn(clippy::pedantic)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 #![allow(
     clippy::missing_errors_doc,
     clippy::similar_names,

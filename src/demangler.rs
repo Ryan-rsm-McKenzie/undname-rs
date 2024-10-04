@@ -1014,6 +1014,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
                 name: s,
                 ..Default::default()
             })?;
+            // SAFETY: we just verified the array is not full
             unsafe { self.backrefs.names.push_unchecked(name) };
         }
         Ok(())
