@@ -843,7 +843,7 @@ pub(crate) struct NamedIdentifierNode<'alloc> {
     pub(crate) name: &'alloc str,
 }
 
-impl<'alloc> WriteableNode for NamedIdentifierNode<'alloc> {
+impl WriteableNode for NamedIdentifierNode<'_> {
     fn output<B: Buffer>(
         &self,
         cache: &NodeCache,
@@ -963,7 +963,7 @@ pub(crate) struct LiteralOperatorIdentifierNode<'alloc> {
     pub(crate) name: &'alloc str,
 }
 
-impl<'alloc> WriteableNode for LiteralOperatorIdentifierNode<'alloc> {
+impl WriteableNode for LiteralOperatorIdentifierNode<'_> {
     fn output<B: Buffer>(
         &self,
         cache: &NodeCache,
@@ -1072,7 +1072,7 @@ pub(crate) struct NodeArrayNode<'alloc> {
     pub(crate) nodes: &'alloc [NodeHandle<INode>],
 }
 
-impl<'alloc> NodeArrayNode<'alloc> {
+impl NodeArrayNode<'_> {
     pub(crate) fn do_output<B: Buffer>(
         &self,
         cache: &NodeCache,
@@ -1091,7 +1091,7 @@ impl<'alloc> NodeArrayNode<'alloc> {
     }
 }
 
-impl<'alloc> WriteableNode for NodeArrayNode<'alloc> {
+impl WriteableNode for NodeArrayNode<'_> {
     fn output<B: Buffer>(
         &self,
         cache: &NodeCache,
@@ -1282,7 +1282,7 @@ pub(crate) struct EncodedStringLiteralNode<'alloc> {
     pub(crate) char: CharKind,
 }
 
-impl<'alloc> WriteableNode for EncodedStringLiteralNode<'alloc> {
+impl WriteableNode for EncodedStringLiteralNode<'_> {
     fn output<B: Buffer>(&self, _: &NodeCache, ob: &mut Writer<B>, _: OutputFlags) -> Result<()> {
         let prefix = match self.char {
             CharKind::Wchar => "L\"",

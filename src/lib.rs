@@ -65,7 +65,7 @@ impl Buffer for Vec<u8> {
     }
 }
 
-impl<'bump> Buffer for BumpVec<'bump, u8> {
+impl Buffer for BumpVec<'_, u8> {
     fn as_bytes(&self) -> &[u8] {
         self.as_slice()
     }
