@@ -347,6 +347,7 @@ impl<T> NodeHandle<T> {
         }
     }
 
+    #[inline]
     pub(crate) fn resolve<'storage, 'alloc: 'storage>(
         self,
         cache: &'storage NodeCache<'alloc>,
@@ -358,6 +359,7 @@ impl<T> NodeHandle<T> {
         T::try_unwrap(node).expect("actual node type does not match encoded type")
     }
 
+    #[inline]
     pub(crate) fn resolve_mut<'storage, 'alloc: 'storage>(
         self,
         cache: &'storage mut NodeCache<'alloc>,
@@ -473,6 +475,7 @@ pub(crate) trait Downcast<To> {
 macro_rules! impl_downcast {
     ($for:ident, $from:ident::$variant:ident => $to:ty) => {
         impl<'node> Downcast<$to> for NodeHandle<$for> {
+            #[inline]
             fn downcast<'storage, 'alloc: 'storage>(
                 self,
                 cache: &'storage NodeCache<'alloc>,
@@ -522,6 +525,7 @@ impl_downcast!(ISymbolNode, SymbolNode::VariableSymbol => VariableSymbol);
 impl_downcast!(ISymbolNode, SymbolNode::FunctionSymbol => FunctionSymbol);
 
 impl Downcast<ISignatureNode> for NodeHandle<INode> {
+    #[inline]
     fn downcast<'storage, 'alloc: 'storage>(
         self,
         cache: &'storage NodeCache<'alloc>,
@@ -535,6 +539,7 @@ impl Downcast<ISignatureNode> for NodeHandle<INode> {
 }
 
 impl Downcast<FunctionSignature> for NodeHandle<INode> {
+    #[inline]
     fn downcast<'storage, 'alloc: 'storage>(
         self,
         cache: &'storage NodeCache<'alloc>,
@@ -550,6 +555,7 @@ impl Downcast<FunctionSignature> for NodeHandle<INode> {
 }
 
 impl Downcast<ThunkSignature> for NodeHandle<INode> {
+    #[inline]
     fn downcast<'storage, 'alloc: 'storage>(
         self,
         cache: &'storage NodeCache<'alloc>,
