@@ -33,10 +33,7 @@ mod nodes;
 mod tests;
 
 use crate::demangler::Demangler;
-use bumpalo::{
-    collections::Vec as BumpVec,
-    Bump,
-};
+use bumpalo::Bump;
 use std::{
     io,
     str::Utf8Error,
@@ -45,76 +42,9 @@ use std::{
 
 type OutputFlags = Flags;
 
-trait Buffer: io::Write {
-    fn as_bytes(&self) -> &[u8];
-
-    fn len_bytes(&self) -> usize {
-        self.as_bytes().len()
-    }
-
-    fn last_char(&self) -> Option<char> {
-        match std::str::from_utf8(self.as_bytes()) {
-            Ok(string) => string.chars().next_back(),
-            Err(_) => None,
-        }
-    }
-}
-
-impl Buffer for Vec<u8> {
-    fn as_bytes(&self) -> &[u8] {
-        self.as_slice()
-    }
-}
-
-impl Buffer for BumpVec<'_, u8> {
-    fn as_bytes(&self) -> &[u8] {
-        self.as_slice()
-    }
-}
-
-struct Writer<B: Buffer> {
-    buffer: B,
-}
-
-impl<B: Buffer> Writer<B> {
-    fn new(buffer: B) -> Self {
-        Self { buffer }
-    }
-
-    fn last_char(&self) -> Option<char> {
-        self.buffer.last_char()
-    }
-
-    fn len_bytes(&self) -> usize {
-        self.buffer.len_bytes()
-    }
-}
-
-impl<B: Buffer> io::Write for Writer<B> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let final_len = buf.len().checked_add(self.buffer.len_bytes());
-        if matches!(final_len, Some(x) if x < (1 << 20)) {
-            self.buffer.write(buf)
-        } else {
-            // a demangled string that's over a mb in length? bail
-            Err(io::Error::new(
-                io::ErrorKind::OutOfMemory,
-                Error::MaliciousInput,
-            ))
-        }
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.buffer.flush()
-    }
-}
-
-impl<'bump> TryFrom<Writer<BumpVec<'bump, u8>>> for &'bump str {
-    type Error = Utf8Error;
-
-    fn try_from(value: Writer<BumpVec<'bump, u8>>) -> std::result::Result<Self, Self::Error> {
-        std::str::from_utf8(value.buffer.into_bump_slice())
-    }
+trait Writer: io::Write {
+    fn last_char(&self) -> Option<char>;
+    fn len_bytes(&self) -> usize;
 }
 
 #[non_exhaustive]

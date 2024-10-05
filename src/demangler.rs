@@ -86,7 +86,6 @@ use crate::{
         VcallThunkIdentifierNode,
         WriteableNode as _,
     },
-    Buffer,
     Error,
     OutputFlags,
     Result,
@@ -96,12 +95,104 @@ use arrayvec::ArrayVec;
 use bumpalo::Bump;
 use smallvec::SmallVec;
 use std::{
-    io::{
-        self,
-        Write as _,
-    },
+    io,
+    io::Write as _,
     mem,
 };
+
+mod writing {
+    use crate::{
+        Error,
+        Writer,
+    };
+    use bumpalo::collections::Vec as BumpVec;
+    use std::{
+        io,
+        str::Utf8Error,
+    };
+
+    pub(super) trait Buffer: io::Write {
+        fn as_bytes(&self) -> &[u8];
+
+        fn len_bytes(&self) -> usize {
+            self.as_bytes().len()
+        }
+
+        fn last_char(&self) -> Option<char> {
+            match std::str::from_utf8(self.as_bytes()) {
+                Ok(string) => string.chars().next_back(),
+                Err(_) => None,
+            }
+        }
+    }
+
+    impl Buffer for Vec<u8> {
+        fn as_bytes(&self) -> &[u8] {
+            self.as_slice()
+        }
+    }
+
+    impl Buffer for BumpVec<'_, u8> {
+        fn as_bytes(&self) -> &[u8] {
+            self.as_slice()
+        }
+    }
+
+    pub(super) struct BufWriter<B: Buffer> {
+        buffer: B,
+    }
+
+    impl<B: Buffer> BufWriter<B> {
+        pub(super) fn new(buffer: B) -> Self {
+            Self { buffer }
+        }
+
+        pub(super) fn into_bytes(self) -> B {
+            self.buffer
+        }
+    }
+
+    impl<B: Buffer> io::Write for BufWriter<B> {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            let final_len = buf.len().checked_add(self.buffer.len_bytes());
+            if matches!(final_len, Some(x) if x < (1 << 20)) {
+                self.buffer.write(buf)
+            } else {
+                // a demangled string that's over a mb in length? bail
+                Err(io::Error::new(
+                    io::ErrorKind::OutOfMemory,
+                    Error::MaliciousInput,
+                ))
+            }
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.buffer.flush()
+        }
+    }
+
+    impl<'bump> TryFrom<BufWriter<BumpVec<'bump, u8>>> for &'bump str {
+        type Error = Utf8Error;
+
+        fn try_from(
+            value: BufWriter<BumpVec<'bump, u8>>,
+        ) -> std::result::Result<Self, Self::Error> {
+            std::str::from_utf8(value.buffer.into_bump_slice())
+        }
+    }
+
+    impl<B: Buffer> Writer for BufWriter<B> {
+        fn last_char(&self) -> Option<char> {
+            self.buffer.last_char()
+        }
+
+        fn len_bytes(&self) -> usize {
+            self.buffer.len_bytes()
+        }
+    }
+}
+
+use writing::BufWriter;
 
 #[derive(Default)]
 struct BackrefContext {
@@ -182,14 +273,12 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         }
 
         let ast = self.do_parse()?.resolve(&self.cache);
-        let mut ob = Writer::<Vec<u8>> {
-            buffer: mem::take(result).into(),
-        };
+        let mut ob = BufWriter::new(mem::take(result).into_bytes());
         if let Err(err) = ast.output(&self.cache, &mut ob, self.flags) {
-            safe_restore_buffer!(ob.buffer);
+            safe_restore_buffer!(ob.into_bytes());
             Err(err)
         } else {
-            match String::from_utf8(ob.buffer) {
+            match String::from_utf8(ob.into_bytes()) {
                 Ok(ok) => {
                     *result = ok;
                     Ok(())
@@ -1025,7 +1114,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         // memorize it for the purpose of back-referencing.
         let mut ob = {
             let ob = alloc::new_vec(self.allocator);
-            Writer::new(ob)
+            BufWriter::new(ob)
         };
         identifier
             .resolve(&self.cache)
@@ -1694,7 +1783,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         // Render the parent symbol's name into a buffer.
         let mut ob = {
             let ob = alloc::new_vec(self.allocator);
-            Writer::new(ob)
+            BufWriter::new(ob)
         };
         write!(ob, "`")?;
         scope.output(&self.cache, &mut ob, self.flags)?;
@@ -1740,7 +1829,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
 
         let mut ob = {
             let ob = alloc::new_vec(self.allocator);
-            Writer::new(ob)
+            BufWriter::new(ob)
         };
         let (char, is_truncated) = if is_wchar_t {
             let char = CharKind::Wchar;
@@ -2149,7 +2238,7 @@ impl<'alloc, 'string: 'alloc> Demangler<'alloc, 'string> {
         }
     }
 
-    fn output_escaped_char<B: Buffer>(ob: &mut Writer<B>, c: u32) -> Result<()> {
+    fn output_escaped_char(ob: &mut dyn Writer, c: u32) -> Result<()> {
         match c {
             0x00 => write!(ob, "\\0"),  // nul
             0x27 => write!(ob, "\\\'"), // single quote

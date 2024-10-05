@@ -53,7 +53,6 @@ use crate::{
         WriteableNode,
         WriteableTypeNode,
     },
-    Buffer,
     OutputFlags,
     Writer,
 };
@@ -118,12 +117,7 @@ pub(super) type NodeConst<'storage, 'alloc> = Node<
 >;
 
 impl<'storage, 'alloc: 'storage> WriteableNode for NodeConst<'storage, 'alloc> {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         match self {
             Self::Type(x) => x.output(cache, ob, flags),
             Self::Identifier(x) => x.output(cache, ob, flags),
@@ -361,21 +355,16 @@ pub(super) type TypeNodeConst<'storage, 'alloc> = TypeNode<
 >;
 
 impl<'storage, 'alloc: 'storage> WriteableNode for TypeNodeConst<'storage, 'alloc> {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.output_pair(cache, ob, flags)
     }
 }
 
 impl<'storage, 'alloc: 'storage> WriteableTypeNode for TypeNodeConst<'storage, 'alloc> {
-    fn output_pair<B: Buffer>(
+    fn output_pair(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -388,12 +377,7 @@ impl<'storage, 'alloc: 'storage> WriteableTypeNode for TypeNodeConst<'storage, '
         }
     }
 
-    fn output_pre<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output_pre(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         match self {
             Self::PrimitiveType(x) => x.output_pre(cache, ob, flags),
             Self::Signature(x) => x.output_pre(cache, ob, flags),
@@ -404,10 +388,10 @@ impl<'storage, 'alloc: 'storage> WriteableTypeNode for TypeNodeConst<'storage, '
         }
     }
 
-    fn output_post<B: Buffer>(
+    fn output_post(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -559,21 +543,16 @@ impl<'storage, 'alloc: 'storage> SignatureNodeConst<'storage, 'alloc> {
 }
 
 impl<'storage, 'alloc: 'storage> WriteableNode for SignatureNodeConst<'storage, 'alloc> {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.output_pair(cache, ob, flags)
     }
 }
 
 impl<'storage, 'alloc: 'storage> WriteableTypeNode for SignatureNodeConst<'storage, 'alloc> {
-    fn output_pair<B: Buffer>(
+    fn output_pair(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -582,22 +561,17 @@ impl<'storage, 'alloc: 'storage> WriteableTypeNode for SignatureNodeConst<'stora
         }
     }
 
-    fn output_pre<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output_pre(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         match self {
             Self::FunctionSignature(x) => x.output_pre(cache, ob, flags),
             Self::ThunkSignature(x) => x.output_pre(cache, ob, flags),
         }
     }
 
-    fn output_post<B: Buffer>(
+    fn output_post(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
     ) -> Result<()> {
         match self {
@@ -667,12 +641,7 @@ pub(super) type IdentifierNodeConst<'storage, 'alloc> = IdentifierNode<
 >;
 
 impl<'storage, 'alloc: 'storage> WriteableNode for IdentifierNodeConst<'storage, 'alloc> {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         match self {
             Self::VcallThunkIdentifier(x) => x.output(cache, ob, flags),
             Self::DynamicStructorIdentifier(x) => x.output(cache, ob, flags),
@@ -803,12 +772,7 @@ impl<'storage, 'alloc: 'storage> SymbolNodeConst<'storage, 'alloc> {
 }
 
 impl<'storage, 'alloc: 'storage> WriteableNode for SymbolNodeConst<'storage, 'alloc> {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         match self {
             Self::Md5Symbol(x) => x.output(cache, ob, flags),
             Self::SpecialTableSymbol(x) => x.output(cache, ob, flags),

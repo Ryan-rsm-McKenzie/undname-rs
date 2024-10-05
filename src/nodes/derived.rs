@@ -44,14 +44,12 @@ use crate::{
         WriteableNode,
         WriteableTypeNode,
     },
-    Buffer,
     OutputFlags,
     Writer,
 };
 use arrayvec::ArrayVec;
 use bumpalo::Bump;
 use std::{
-    io::Write as _,
     mem::ManuallyDrop,
     ops::{
         Deref,
@@ -76,23 +74,13 @@ impl PrimitiveTypeNode {
 }
 
 impl WriteableNode for PrimitiveTypeNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.output_pair(cache, ob, flags)
     }
 }
 
 impl WriteableTypeNode for PrimitiveTypeNode {
-    fn output_pre<B: Buffer>(
-        &self,
-        _: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output_pre(&self, _: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         let kind = match self.prim_kind {
             PrimitiveKind::Void => "void",
             PrimitiveKind::Bool => "bool",
@@ -122,12 +110,7 @@ impl WriteableTypeNode for PrimitiveTypeNode {
         self.quals.output(ob, flags, true, false)
     }
 
-    fn output_post<B: Buffer>(
-        &self,
-        _: &NodeCache,
-        _: &mut Writer<B>,
-        _: OutputFlags,
-    ) -> Result<()> {
+    fn output_post(&self, _: &NodeCache, _: &mut dyn Writer, _: OutputFlags) -> Result<()> {
         Ok(())
     }
 }
@@ -163,10 +146,10 @@ pub(crate) struct FunctionSignatureNode {
 }
 
 impl FunctionSignatureNode {
-    fn do_output_pre<B: Buffer>(
+    fn do_output_pre(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
         is_function_ptr: bool,
     ) -> Result<()> {
@@ -214,10 +197,10 @@ impl FunctionSignatureNode {
         Ok(())
     }
 
-    fn do_output_post<B: Buffer>(
+    fn do_output_post(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
         is_function_ptr: bool,
     ) -> Result<()> {
@@ -302,30 +285,20 @@ impl Default for FunctionSignatureNode {
 }
 
 impl WriteableNode for FunctionSignatureNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.output_pair(cache, ob, flags)
     }
 }
 
 impl WriteableTypeNode for FunctionSignatureNode {
-    fn output_pre<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output_pre(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.do_output_pre(cache, ob, flags, false)
     }
 
-    fn output_post<B: Buffer>(
+    fn output_post(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
     ) -> Result<()> {
         self.do_output_post(cache, ob, flags, false)
@@ -347,10 +320,10 @@ pub(crate) struct ThunkSignatureNode {
 }
 
 impl ThunkSignatureNode {
-    fn do_output_pre<B: Buffer>(
+    fn do_output_pre(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
         is_function_ptr: bool,
     ) -> Result<()> {
@@ -361,10 +334,10 @@ impl ThunkSignatureNode {
             .do_output_pre(cache, ob, flags, is_function_ptr)
     }
 
-    fn do_output_post<B: Buffer>(
+    fn do_output_post(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
         is_function_ptr: bool,
     ) -> Result<()> {
@@ -405,30 +378,20 @@ impl DerefMut for ThunkSignatureNode {
 }
 
 impl WriteableNode for ThunkSignatureNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.output_pair(cache, ob, flags)
     }
 }
 
 impl WriteableTypeNode for ThunkSignatureNode {
-    fn output_pre<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output_pre(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.do_output_pre(cache, ob, flags, false)
     }
 
-    fn output_post<B: Buffer>(
+    fn output_post(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
     ) -> Result<()> {
         self.do_output_post(cache, ob, flags, false)
@@ -451,23 +414,13 @@ pub(crate) struct PointerTypeNode {
 }
 
 impl WriteableNode for PointerTypeNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.output_pair(cache, ob, flags)
     }
 }
 
 impl WriteableTypeNode for PointerTypeNode {
-    fn output_pre<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output_pre(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         let pointee = self.pointee.resolve(cache);
         if let TypeNode::Signature(sig) = pointee {
             // If this is a pointer to a function, don't output the calling convention.
@@ -525,10 +478,10 @@ impl WriteableTypeNode for PointerTypeNode {
         self.quals.output(ob, flags, false, false)
     }
 
-    fn output_post<B: Buffer>(
+    fn output_post(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
     ) -> Result<()> {
         let pointee = self.pointee.resolve(cache);
@@ -558,23 +511,13 @@ pub(crate) struct TagTypeNode {
 }
 
 impl WriteableNode for TagTypeNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.output_pair(cache, ob, flags)
     }
 }
 
 impl WriteableTypeNode for TagTypeNode {
-    fn output_pre<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output_pre(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         if !flags.no_tag_specifier() && !flags.name_only() {
             let tag = match self.tag {
                 TagKind::Class => "class",
@@ -592,12 +535,7 @@ impl WriteableTypeNode for TagTypeNode {
         self.quals.output(ob, flags, true, false)
     }
 
-    fn output_post<B: Buffer>(
-        &self,
-        _: &NodeCache,
-        _: &mut Writer<B>,
-        _: OutputFlags,
-    ) -> Result<()> {
+    fn output_post(&self, _: &NodeCache, _: &mut dyn Writer, _: OutputFlags) -> Result<()> {
         Ok(())
     }
 }
@@ -614,9 +552,9 @@ pub(crate) struct ArrayTypeNode {
 }
 
 impl ArrayTypeNode {
-    fn output_one_dimension<B: Buffer>(
+    fn output_one_dimension(
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
         node: NodeHandle<INode>,
     ) -> Result<()> {
@@ -632,10 +570,10 @@ impl ArrayTypeNode {
         }
     }
 
-    fn output_dimensions_impl<B: Buffer>(
+    fn output_dimensions_impl(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
     ) -> Result<()> {
         let dimensions = self.dimensions.resolve(cache);
@@ -652,33 +590,23 @@ impl ArrayTypeNode {
 }
 
 impl WriteableNode for ArrayTypeNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.output_pair(cache, ob, flags)
     }
 }
 
 impl WriteableTypeNode for ArrayTypeNode {
-    fn output_pre<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output_pre(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.element_type
             .resolve(cache)
             .output_pre(cache, ob, flags)?;
         self.quals.output(ob, flags, true, false)
     }
 
-    fn output_post<B: Buffer>(
+    fn output_post(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
     ) -> Result<()> {
         write!(ob, "[")?;
@@ -697,32 +625,17 @@ pub(crate) struct CustomTypeNode {
 }
 
 impl WriteableNode for CustomTypeNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.output_pair(cache, ob, flags)
     }
 }
 
 impl WriteableTypeNode for CustomTypeNode {
-    fn output_pre<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output_pre(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.identifier.resolve(cache).output(cache, ob, flags)
     }
 
-    fn output_post<B: Buffer>(
-        &self,
-        _: &NodeCache,
-        _: &mut Writer<B>,
-        _: OutputFlags,
-    ) -> Result<()> {
+    fn output_post(&self, _: &NodeCache, _: &mut dyn Writer, _: OutputFlags) -> Result<()> {
         Ok(())
     }
 }
@@ -731,12 +644,7 @@ impl WriteableTypeNode for CustomTypeNode {
 pub(crate) struct TemplateParameters(pub(crate) Option<NodeHandle<NodeArray>>);
 
 impl TemplateParameters {
-    fn output<B: Buffer>(
-        self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         if let Some(this) = self.map(|x| x.resolve(cache)) {
             write!(ob, "<")?;
             this.output(cache, ob, flags)?;
@@ -767,12 +675,7 @@ pub(crate) struct VcallThunkIdentifierNode {
 }
 
 impl WriteableNode for VcallThunkIdentifierNode {
-    fn output<B: Buffer>(
-        &self,
-        _: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, _: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         if flags.name_only() {
             write!(ob, "`vcall'{{{}}}", self.offset_in_vtable)?;
         } else {
@@ -808,12 +711,7 @@ pub(crate) struct DynamicStructorIdentifierNode {
 }
 
 impl WriteableNode for DynamicStructorIdentifierNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         if self.is_destructor {
             write!(ob, "`dynamic atexit destructor for ")?;
         } else {
@@ -844,12 +742,7 @@ pub(crate) struct NamedIdentifierNode<'alloc> {
 }
 
 impl WriteableNode for NamedIdentifierNode<'_> {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         write!(ob, "{}", self.name)?;
         self.template_params.output(cache, ob, flags)
     }
@@ -872,12 +765,7 @@ impl IntrinsicFunctionIdentifierNode {
 }
 
 impl WriteableNode for IntrinsicFunctionIdentifierNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         if let Some(operator) = self.operator {
             let op = match operator {
                 IntrinsicFunctionKind::New => "operator new",
@@ -964,12 +852,7 @@ pub(crate) struct LiteralOperatorIdentifierNode<'alloc> {
 }
 
 impl WriteableNode for LiteralOperatorIdentifierNode<'_> {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         write!(ob, "operator \"\"{}", self.name)?;
         self.template_params.output(cache, ob, flags)
     }
@@ -983,7 +866,7 @@ pub(crate) struct LocalStaticGuardIdentifierNode {
 }
 
 impl WriteableNode for LocalStaticGuardIdentifierNode {
-    fn output<B: Buffer>(&self, _: &NodeCache, ob: &mut Writer<B>, _: OutputFlags) -> Result<()> {
+    fn output(&self, _: &NodeCache, ob: &mut dyn Writer, _: OutputFlags) -> Result<()> {
         if self.is_thread {
             write!(ob, "`local static thread guard'")?;
         } else {
@@ -1005,12 +888,7 @@ pub(crate) struct ConversionOperatorIdentifierNode {
 }
 
 impl WriteableNode for ConversionOperatorIdentifierNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         write!(ob, "operator")?;
         self.template_params.output(cache, ob, flags)?;
         write!(ob, " ")?;
@@ -1031,12 +909,7 @@ pub(crate) struct StructorIdentifierNode {
 }
 
 impl WriteableNode for StructorIdentifierNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         if self.is_destructor {
             write!(ob, "~")?;
         }
@@ -1057,7 +930,7 @@ pub(crate) struct RttiBaseClassDescriptorNode {
 }
 
 impl WriteableNode for RttiBaseClassDescriptorNode {
-    fn output<B: Buffer>(&self, _: &NodeCache, ob: &mut Writer<B>, _: OutputFlags) -> Result<()> {
+    fn output(&self, _: &NodeCache, ob: &mut dyn Writer, _: OutputFlags) -> Result<()> {
         write!(
             ob,
             "`RTTI Base Class Descriptor at ({}, {}, {}, {})'",
@@ -1073,10 +946,10 @@ pub(crate) struct NodeArrayNode<'alloc> {
 }
 
 impl NodeArrayNode<'_> {
-    pub(crate) fn do_output<B: Buffer>(
+    pub(crate) fn do_output(
         &self,
         cache: &NodeCache,
-        ob: &mut Writer<B>,
+        ob: &mut dyn Writer,
         flags: OutputFlags,
         separator: &str,
     ) -> Result<()> {
@@ -1092,12 +965,7 @@ impl NodeArrayNode<'_> {
 }
 
 impl WriteableNode for NodeArrayNode<'_> {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.do_output(cache, ob, flags, ", ")
     }
 }
@@ -1146,12 +1014,7 @@ impl QualifiedNameNode {
 }
 
 impl WriteableNode for QualifiedNameNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.components
             .resolve(cache)
             .do_output(cache, ob, flags, "::")
@@ -1168,12 +1031,7 @@ pub(crate) struct TemplateParameterReferenceNode {
 }
 
 impl WriteableNode for TemplateParameterReferenceNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         if !self.thunk_offsets.is_empty() {
             write!(ob, "{{")?;
         } else if self.affinity.is_some_and(|x| x == PointerAffinity::Pointer) {
@@ -1206,7 +1064,7 @@ pub(crate) struct IntegerLiteralNode {
 }
 
 impl WriteableNode for IntegerLiteralNode {
-    fn output<B: Buffer>(&self, _: &NodeCache, ob: &mut Writer<B>, _: OutputFlags) -> Result<()> {
+    fn output(&self, _: &NodeCache, ob: &mut dyn Writer, _: OutputFlags) -> Result<()> {
         let sign = if self.is_negative { "-" } else { "" };
         write!(ob, "{sign}{}", self.value)?;
         Ok(())
@@ -1219,12 +1077,7 @@ pub(crate) struct Md5SymbolNode {
 }
 
 impl WriteableNode for Md5SymbolNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.name.resolve(cache).output(cache, ob, flags)
     }
 }
@@ -1237,12 +1090,7 @@ pub(crate) struct SpecialTableSymbolNode {
 }
 
 impl WriteableNode for SpecialTableSymbolNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         if !flags.name_only() {
             self.quals.output(ob, flags, false, true)?;
         }
@@ -1264,12 +1112,7 @@ pub(crate) struct LocalStaticGuardVariableNode {
 }
 
 impl WriteableNode for LocalStaticGuardVariableNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.name.resolve(cache).output(cache, ob, flags)
     }
 }
@@ -1283,7 +1126,7 @@ pub(crate) struct EncodedStringLiteralNode<'alloc> {
 }
 
 impl WriteableNode for EncodedStringLiteralNode<'_> {
-    fn output<B: Buffer>(&self, _: &NodeCache, ob: &mut Writer<B>, _: OutputFlags) -> Result<()> {
+    fn output(&self, _: &NodeCache, ob: &mut dyn Writer, _: OutputFlags) -> Result<()> {
         let prefix = match self.char {
             CharKind::Wchar => "L\"",
             CharKind::Char => "\"",
@@ -1336,12 +1179,7 @@ impl VariableSymbolNode {
 }
 
 impl WriteableNode for VariableSymbolNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         let (access_spec, is_static) = match self.sc {
             Some(StorageClass::PrivateStatic) => (Some("private"), true),
             Some(StorageClass::PublicStatic) => (Some("public"), true),
@@ -1397,12 +1235,7 @@ pub(crate) struct FunctionSymbolNode {
 }
 
 impl WriteableNode for FunctionSymbolNode {
-    fn output<B: Buffer>(
-        &self,
-        cache: &NodeCache,
-        ob: &mut Writer<B>,
-        flags: OutputFlags,
-    ) -> Result<()> {
+    fn output(&self, cache: &NodeCache, ob: &mut dyn Writer, flags: OutputFlags) -> Result<()> {
         self.signature.resolve(cache).output_pre(cache, ob, flags)?;
         super::output_space_if_necessary(ob)?;
         if let Some(name) = self.name {
